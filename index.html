@@ -387,10 +387,17 @@
             },
 
             sendAction: (type, payload) => {
+                // Attach senderId to payload if missing
+                // This fixes the issue where client actions (like CHOOSE_GOV) were ignored by Host
+                const finalPayload = { ...payload };
+                if (!finalPayload.senderId) {
+                    finalPayload.senderId = Game.state.myId;
+                }
+
                 if (Game.state.isHost) {
-                    Game.handleAction(type, payload, Game.state.myId);
+                    Game.handleAction(type, finalPayload, Game.state.myId);
                 } else if (Game.hostConn) {
-                    Game.hostConn.send({ type: 'ACTION', actionType: type, payload: payload });
+                    Game.hostConn.send({ type: 'ACTION', actionType: type, payload: finalPayload });
                 }
             },
 
@@ -438,6 +445,11 @@
 
                 const senderId = payload.senderId || localSenderId;
                 const player = Game.state.players.find(p => p.id === senderId);
+
+                if (!player && type !== 'JOIN_INFO') {
+                     console.warn("Action received from unknown player:", senderId);
+                     return;
+                }
 
                 switch (type) {
                     case 'START_MATCH':
@@ -730,6 +742,9 @@
                     renderCountry(container);
                     showGovernmentSelection();
                     return; 
+                } else if (me.style) {
+                     // Ensure overlay is hidden if style is set (e.g. after refresh/sync)
+                     document.getElementById('setup-overlay').classList.add('hidden');
                 }
 
                 switch(router.current) {
