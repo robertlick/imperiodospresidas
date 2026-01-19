@@ -68,6 +68,9 @@
                 <span class="text-[10px] text-slate-400 uppercase font-bold">Semestre</span>
                 <span class="text-xl font-bold text-gold-500" id="round-display">1/8</span>
             </div>
+            <button onclick="Game.exitGame()" class="w-8 h-8 rounded bg-red-900/50 flex items-center justify-center text-red-300 border border-red-800 active:scale-95">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+            </button>
         </div>
     </header>
 
@@ -225,6 +228,16 @@
                 text: "Subsidiar combustível para caminhoneiros?",
                 yes: { desc: "Evita greve imediata, rombo no orçamento.", effect: { stab: 10, eco: -15 } },
                 no: { desc: "Risco de paralisação no país.", effect: { eco: 10, stab: -15 } }
+            },
+            {
+                text: "Adotar criptomoeda como moeda oficial?",
+                yes: { desc: "Modernidade atrai investidores de risco, mas gera instabilidade.", effect: { eco: 15, stab: -15 } },
+                no: { desc: "Mantém moeda tradicional e controle do banco central.", effect: { stab: 5 } }
+            },
+            {
+                text: "Criar imposto sobre grandes fortunas?",
+                yes: { desc: "Aumenta arrecadação e agrada o povo, elite se revolta.", effect: { pop: 20, eco: -10 } },
+                no: { desc: "Mantém investimentos da elite no país.", effect: { eco: 5, pop: -5 } }
             }
         ];
 
@@ -240,21 +253,27 @@
                 newsFeed: []
             },
             peer: null,
-            connections: [], // Only used if Host
-
-            // --- NETWORK LOGIC ---
+            connections: [], 
             
-            initPeer: (id) => {
-                // Prefix ID to avoid collisions on public server
-                const cleanId = id.toUpperCase();
-                // PeerJS ID format: imp-pres-CODE
-                const peerId = `imp-pres-${cleanId}`;
+            // --- PEERJS CONFIG ---
+            // Use a unique prefix to avoid collisions on public server
+            ID_PREFIX: 'imp-pres-sa-game-v1-',
+
+            initPeer: (idSuffix) => {
+                const peerId = Game.ID_PREFIX + idSuffix;
                 
-                Game.peer = new Peer(peerId);
+                // Destroy old instance if exists
+                if(Game.peer) Game.peer.destroy();
+
+                Game.peer = new Peer(peerId, {
+                    debug: 1
+                });
 
                 Game.peer.on('open', (id) => {
                     console.log('My peer ID is: ' + id);
                     if(Game.state.isHost) {
+                         // Save game state only after successful host creation
+                         Game.saveLocal();
                          router.navigate('lobby');
                     } else {
                         // If joiner, connect to host immediately
@@ -266,7 +285,6 @@
                     if (Game.state.isHost) {
                         Game.handleHostConnection(conn);
                     } else {
-                        // Clients shouldn't really receive connections, but just in case
                         conn.on('data', (data) => Game.handleData(data));
                     }
                 });
@@ -274,30 +292,23 @@
                 Game.peer.on('error', (err) => {
                     console.error(err);
                     let msg = "Erro de conexão.";
-                    if(err.type === 'unavailable-id') msg = "Código de sala já em uso ou inválido.";
-                    if(err.type === 'peer-unavailable') msg = "Sala não encontrada. O Host está online?";
+                    if(err.type === 'unavailable-id') msg = "ID indisponível (Tente outro código ou aguarde).";
+                    if(err.type === 'peer-unavailable') msg = "Sala não encontrada ou Host offline.";
                     showToast(msg, 'error');
-                    router.navigate('home');
+                    // Do not redirect to home automatically, let user retry
                 });
             },
 
             // HOST LOGIC
             handleHostConnection: (conn) => {
                 Game.connections.push(conn);
-                
                 conn.on('open', () => {
                     console.log("Host: New connection");
-                    // Ask for player details
                     conn.send({ type: 'REQUEST_INFO' });
                 });
-
-                conn.on('data', (data) => {
-                    Game.handleData(data, conn);
-                });
-                
+                conn.on('data', (data) => Game.handleData(data, conn));
                 conn.on('close', () => {
                     Game.connections = Game.connections.filter(c => c !== conn);
-                    // Remove player logic could go here
                 });
             },
 
@@ -307,38 +318,36 @@
             },
 
             syncState: () => {
-                // Send full state to all clients
+                Game.saveLocal();
                 Game.broadcast({ type: 'SYNC_STATE', payload: Game.state });
                 router.renderCurrent();
-                router.renderHeader(); // Ensure header updates for Host
+                router.renderHeader();
             },
 
             // CLIENT LOGIC
             connectToHost: () => {
-                const hostId = `imp-pres-${Game.state.roomCode}`;
+                const hostId = Game.ID_PREFIX + Game.state.roomCode;
+                console.log("Connecting to:", hostId);
                 const conn = Game.peer.connect(hostId);
                 
                 conn.on('open', () => {
                     console.log("Client: Connected to Host");
                     showToast("Conectado à sala!");
                     Game.hostConn = conn;
+                    // Save local state only after successful connection
+                    Game.saveLocal();
                 });
 
                 conn.on('data', (data) => Game.handleData(data));
                 
                 conn.on('close', () => {
                     showToast("Desconectado do Host", 'error');
-                    router.navigate('home');
-                });
-                
-                conn.on('error', (err) => {
-                    console.error("Conn Error", err);
+                    // Don't auto-navigate home to allow reading the error
                 });
             },
 
             sendAction: (type, payload) => {
                 if (Game.state.isHost) {
-                    // Execute directly
                     Game.handleAction(type, payload, Game.state.myId);
                 } else if (Game.hostConn) {
                     Game.hostConn.send({ type: 'ACTION', actionType: type, payload: payload });
@@ -347,41 +356,34 @@
 
             // COMMON DATA HANDLER
             handleData: (data, connSource = null) => {
-                // console.log("Received:", data);
-                
                 if (data.type === 'SYNC_STATE') {
-                    // Client receives state update
-                    const myId = Game.state.myId; // Preserve local ID
-                    const isHost = Game.state.isHost; // Preserve role
+                    const myId = Game.state.myId;
+                    const isHost = Game.state.isHost;
                     Game.state = data.payload;
                     Game.state.myId = myId;
                     Game.state.isHost = isHost;
+                    Game.saveLocal(); // Persist on sync
                     router.renderCurrent();
-                    router.renderHeader(); // Ensure header updates for Client
+                    router.renderHeader();
                     return;
                 }
 
                 if (Game.state.isHost) {
                     if (data.type === 'ACTION') {
-                        // Find who sent it based on connection if needed, or payload
-                        // For simplicity, we trust the payload sender ID or assume logic
-                        // Here we require the sender to put their ID in payload usually, 
-                        // but let's grab the player associated with this connection if we mapped it.
-                        // Simplified: Payload contains sender ID.
                         Game.handleAction(data.actionType, data.payload, null);
                     }
                     if (data.type === 'JOIN_INFO') {
-                        // New player sending their name
                         const newPlayer = Game.createPlayerStruct(data.payload.id, data.payload.name);
-                        // Check if already exists
                         if(!Game.state.players.find(p => p.id === newPlayer.id)) {
                             Game.state.players.push(newPlayer);
                             showToast(`${newPlayer.name} entrou!`);
                             Game.syncState();
+                        } else {
+                            // Re-sync if player reconnects (naive implementation)
+                            Game.syncState();
                         }
                     }
                 } else {
-                    // Client receiving specific requests
                     if (data.type === 'REQUEST_INFO') {
                         const me = Game.createPlayerStruct(Game.state.myId, localStorage.getItem('p_name') || 'Jogador');
                         Game.hostConn.send({ type: 'JOIN_INFO', payload: me });
@@ -389,9 +391,9 @@
                 }
             },
 
-            // CENTRAL GAME LOGIC (Host Only runs this mostly)
+            // GAME LOGIC
             handleAction: (type, payload, localSenderId) => {
-                if (!Game.state.isHost) return; // Only host mutates state
+                if (!Game.state.isHost) return;
 
                 const senderId = payload.senderId || localSenderId;
                 const player = Game.state.players.find(p => p.id === senderId);
@@ -404,7 +406,6 @@
                         if(player) {
                             const style = ALL_GOV_STYLES.find(s => s.id === payload.styleId);
                             player.style = style;
-                            // Apply bonuses
                             if (style.bonus.eco) player.stats.eco += style.bonus.eco;
                             if (style.bonus.pop) player.stats.pop += style.bonus.pop;
                             if (style.bonus.stab) player.stats.stab += style.bonus.stab;
@@ -425,22 +426,30 @@
                         if(player && player.currentDilemma) {
                             const decision = player.currentDilemma;
                             const outcome = payload.choiceIndex === 0 ? decision.yes : decision.no;
-                             // Apply effects
+                            
                             if (outcome.effect.eco) player.stats.eco += outcome.effect.eco;
                             if (outcome.effect.pop) player.stats.pop += outcome.effect.pop;
                             if (outcome.effect.stab) player.stats.stab += outcome.effect.stab;
                             ['eco','pop','stab'].forEach(k => player.stats[k] = Math.max(0, Math.min(100, player.stats[k])));
                             
                             const actionText = payload.choiceIndex === 0 ? "aprovou" : "rejeitou";
-                            Game.addNewsLogic(`${player.country.name} ${actionText} medida: ${decision.text}`, 'real');
+                            Game.addNewsLogic(`${player.country.name} ${actionText}: ${decision.text}`, 'real');
                             
+                            // 3 DECISIONS LOGIC
+                            // Remove current
                             player.currentDilemma = null;
-                            player.hasActed = true;
-                            
-                            // Check if all players acted
-                            const allActed = Game.state.players.every(p => p.hasActed);
-                            if(allActed) {
-                                setTimeout(() => Game.nextRoundLogic(), 2000);
+
+                            // Check Queue
+                            if (player.dilemmaQueue && player.dilemmaQueue.length > 0) {
+                                // Next Decision immediately
+                                player.currentDilemma = player.dilemmaQueue.shift();
+                            } else {
+                                // All decisions done for this round
+                                player.hasActed = true;
+                                const allActed = Game.state.players.every(p => p.hasActed);
+                                if(allActed) {
+                                    setTimeout(() => Game.checkGamePhaseLogic(), 2000);
+                                }
                             }
                         }
                         break;
@@ -450,15 +459,17 @@
                         }
                         break;
                     case 'DEPLOY_SPY':
-                        // Logic simplified for online
                         if(Math.random() > 0.5) {
-                            // Success
+                            // Success logic could return data to private user, simplified here
                         } else {
                             const target = Game.state.players.find(p => p.id === payload.targetId);
                             Game.addNewsLogic(`Espião estrangeiro capturado em ${target.country.name}!`, 'real');
                             target.stats.stab -= 5;
                         }
                         break;
+                    case 'END_SPEECH':
+                         Game.debateNextSpeakerLogic();
+                         break;
                 }
 
                 Game.syncState();
@@ -468,14 +479,13 @@
             
             createRoom: (name) => {
                 localStorage.setItem('p_name', name);
-                const code = Math.floor(1000 + Math.random() * 9000).toString(); // 4 Digit String
-                const myId = 'p' + Date.now();
+                // 4 Digit String Code
+                const code = Math.floor(1000 + Math.random() * 9000).toString(); 
+                const myId = 'p-' + Date.now();
                 
                 Game.state.roomCode = code;
                 Game.state.myId = myId;
                 Game.state.isHost = true;
-                
-                // Add Host to players immediately
                 Game.state.players = [Game.createPlayerStruct(myId, name)];
                 
                 Game.initPeer(code);
@@ -483,13 +493,14 @@
 
             joinRoom: (name, code) => {
                 localStorage.setItem('p_name', name);
-                const myId = 'p' + Date.now() + Math.random(); // Unique ID for client
+                const myId = 'p-' + Date.now() + Math.random().toString(36).substr(2, 5);
                 Game.state.roomCode = code;
                 Game.state.myId = myId;
                 Game.state.isHost = false;
                 
-                // Init peer (client ID is random, connection target is roomCode)
-                Game.initPeer('client-' + myId);
+                // Random ID for client Peer
+                const randomClientId = 'client-' + Math.random().toString(36).substr(2, 9);
+                Game.initPeer(randomClientId);
             },
 
             createPlayerStruct: (id, name) => {
@@ -501,20 +512,55 @@
                     stats: { eco: 50, stab: 50, pop: 50 },
                     visibility: 'public',
                     hasActed: false,
-                    visibilityChangedThisRound: false
+                    visibilityChangedThisRound: false,
+                    currentDilemma: null,
+                    dilemmaQueue: []
                 };
             },
 
+            exitGame: () => {
+                localStorage.removeItem('presidentes_game');
+                if(Game.peer) Game.peer.destroy();
+                location.reload();
+            },
+
+            saveLocal: () => {
+                localStorage.setItem('presidentes_game', JSON.stringify(Game.state));
+            },
+
+            loadLocal: () => {
+                const data = localStorage.getItem('presidentes_game');
+                if(data) { 
+                    try {
+                        Game.state = JSON.parse(data);
+                        return true;
+                    } catch(e) {
+                        return false;
+                    }
+                } 
+                return false; 
+            },
+
+            // --- LOGIC HELPERS ---
+
+            getRandomDilemmas: (count) => {
+                const selected = [];
+                for(let i=0; i<count; i++) {
+                    selected.push(DECISIONS_POOL[Math.floor(Math.random() * DECISIONS_POOL.length)]);
+                }
+                return selected;
+            },
+
             startMatchLogic: () => {
-                // Assign Countries randomly
                 const shuffledCountries = [...COUNTRIES].sort(() => 0.5 - Math.random());
                 Game.state.players.forEach((p, i) => {
                     p.country = shuffledCountries[i % shuffledCountries.length];
                 });
                 
-                // Generate first dilemma for everyone
+                // 3 Decisions per round logic
                 Game.state.players.forEach(p => {
-                     p.currentDilemma = DECISIONS_POOL[Math.floor(Math.random() * DECISIONS_POOL.length)];
+                     p.dilemmaQueue = Game.getRandomDilemmas(3);
+                     p.currentDilemma = p.dilemmaQueue.shift();
                 });
 
                 Game.state.phase = 'game';
@@ -527,18 +573,55 @@
                 });
             },
 
+            checkGamePhaseLogic: () => {
+                // Determine if we go to debate or next round
+                // Debate at end of Sem 4 and Sem 8
+                if (Game.state.round === 4 || Game.state.round === 8) {
+                    Game.startDebateLogic();
+                } else {
+                    Game.nextRoundLogic();
+                }
+            },
+
             nextRoundLogic: () => {
                 Game.state.round++;
                 Game.state.players.forEach(p => {
                     p.hasActed = false;
                     p.visibilityChangedThisRound = false;
-                    p.currentDilemma = DECISIONS_POOL[Math.floor(Math.random() * DECISIONS_POOL.length)];
+                    // Replenish 3 Decisions
+                    p.dilemmaQueue = Game.getRandomDilemmas(3);
+                    p.currentDilemma = p.dilemmaQueue.shift();
                 });
-                // Debate logic could be added here
+                showToast(`Início do Semestre ${Game.state.round}`);
                 Game.syncState();
             },
 
-            // --- UI ACTIONS MAPPED TO NETWORK ---
+            startDebateLogic: () => {
+                // Initialize debate state
+                Game.state.debateQueue = [...Game.state.players];
+                Game.state.isDebating = true;
+                // Force sync to show overlay
+                Game.debateNextSpeakerLogic();
+            },
+
+            debateNextSpeakerLogic: () => {
+                if (Game.state.debateQueue.length === 0) {
+                    // Debate Finished
+                    Game.state.isDebating = false;
+                    Game.state.currentSpeakerId = null;
+                    // Proceed to next round after debate
+                    Game.nextRoundLogic();
+                    return;
+                }
+                
+                const nextSpeaker = Game.state.debateQueue.shift();
+                Game.state.currentSpeakerId = nextSpeaker.id;
+                // Timestamp to sync countdown
+                Game.state.debateStartTime = Date.now(); 
+                Game.syncState();
+            },
+
+            // --- UI ACTIONS ---
 
             getMyPlayer: () => Game.state.players.find(p => p.id === Game.state.myId),
 
@@ -555,9 +638,9 @@
             uiResolveDilemma: (choiceIndex) => {
                 const me = Game.getMyPlayer();
                 Game.sendAction('RESOLVE_DILEMMA', { choiceIndex, senderId: me.id });
-                // Optimistic UI update or just wait for sync? Wait for sync is safer for consistency
-                // But let's hide the buttons locally
-                document.getElementById('badge-decision').classList.add('hidden');
+                // Hide locally immediately
+                const container = document.getElementById('decision-card-container');
+                if(container) container.innerHTML = '<div class="text-center p-10 animate-pulse">Enviando...</div>';
             },
 
             uiCreateFakeNews: (targetId, targetName, headline) => {
@@ -569,22 +652,25 @@
                 Game.sendAction('DEPLOY_SPY', { targetId, sector });
                 closeModal();
                 showToast("Espião enviado.");
+            },
+
+            endSpeech: () => {
+                 Game.sendAction('END_SPEECH', { senderId: Game.state.myId });
             }
         };
 
-        // --- ROUTER ---
+        // --- ROUTER & RENDERERS ---
         const router = {
             current: 'home',
             navigate: (view) => {
                 router.current = view;
-                router.renderHeader(); // Only shows if phase is game
+                router.renderHeader();
                 router.renderCurrent();
             },
             renderCurrent: () => {
                 const container = document.getElementById('app-container');
                 container.innerHTML = '';
                 
-                // Logic to redirect if in game but on home screen
                 if (Game.state.phase === 'game' && router.current === 'lobby') {
                     router.navigate('country');
                     return;
@@ -600,9 +686,14 @@
                 const me = Game.getMyPlayer();
                 if (!me) { router.navigate('home'); return; }
 
-                // Check for Government Selection
+                // Check for Debate Overlay
+                if (Game.state.isDebating) {
+                    renderDebateOverlay();
+                } else {
+                    document.getElementById('debate-overlay').classList.add('hidden');
+                }
+
                 if (me.country && !me.style && Game.state.phase === 'game') {
-                    // Render country in background but show overlay
                     renderCountry(container);
                     showGovernmentSelection();
                     return; 
@@ -632,7 +723,6 @@
                     nav.classList.add('hidden');
                  }
                  
-                 // Highlight Nav
                  document.querySelectorAll('.nav-btn').forEach(btn => {
                     if (btn.onclick && btn.onclick.toString().includes(router.current)) {
                         btn.classList.remove('opacity-60'); btn.classList.add('text-gold-500');
@@ -644,6 +734,59 @@
         };
 
         // --- VIEWS ---
+
+        function renderDebateOverlay() {
+            const overlay = document.getElementById('debate-overlay');
+            overlay.classList.remove('hidden');
+            
+            const speakerId = Game.state.currentSpeakerId;
+            const speaker = Game.state.players.find(p => p.id === speakerId);
+            const isMe = speakerId === Game.state.myId;
+
+            document.getElementById('debate-speaker-name').innerText = speaker ? speaker.country.name : "Carregando...";
+            document.getElementById('debate-speaker-name').className = `text-3xl font-bold mb-4 ${isMe ? 'text-gold-400' : 'text-slate-400'}`;
+
+            const btnEnd = document.getElementById('btn-end-speech');
+            const waitMsg = document.getElementById('debate-wait-msg');
+            const countdown = document.getElementById('debate-countdown');
+            const timerBar = document.getElementById('debate-timer-bar');
+
+            // Timer Logic (Synced)
+            const duration = 30; // seconds
+            const elapsed = Math.floor((Date.now() - (Game.state.debateStartTime || Date.now())) / 1000);
+            const remaining = Math.max(0, duration - elapsed);
+            
+            countdown.innerText = remaining;
+            timerBar.style.width = `${(remaining/duration)*100}%`;
+
+            if (isMe) {
+                btnEnd.classList.remove('hidden');
+                waitMsg.classList.add('hidden');
+                document.getElementById('debate-topic').innerText = "Sua vez! Discurse para os outros jogadores.";
+                // Auto end if time up (Client side check, host also checks)
+                if(remaining === 0 && !window.debateEndSent) {
+                     window.debateEndSent = true; 
+                     Game.endSpeech();
+                }
+                if(remaining > 0) window.debateEndSent = false;
+            } else {
+                btnEnd.classList.add('hidden');
+                waitMsg.classList.remove('hidden');
+                document.getElementById('debate-topic').innerText = `${speaker ? speaker.name : 'Alguém'} está discursando...`;
+            }
+
+            // Simple loop to update timer if debate open
+            if(!window.debateTimerLoop) {
+                window.debateTimerLoop = setInterval(() => {
+                    if(!Game.state.isDebating) {
+                        clearInterval(window.debateTimerLoop);
+                        window.debateTimerLoop = null;
+                        return;
+                    }
+                    renderDebateOverlay(); // Re-render to update timer UI
+                }, 1000);
+            }
+        }
 
         function renderHome(container) {
             container.innerHTML = `
@@ -669,7 +812,7 @@
                             </div>
                         </div>
                     </div>
-                    <p class="absolute bottom-6 text-xs text-slate-600">Conexão P2P via PeerJS</p>
+                    <p class="absolute bottom-6 text-xs text-slate-600">v3.0 - P2P Stable</p>
                 </div>
             `;
         }
@@ -720,7 +863,6 @@
                         <button onclick="Game.sendAction('START_MATCH', {})" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
                             <i data-lucide="play" class="w-5 h-5"></i> Iniciar Jogo
                         </button>
-                        <p class="text-xs text-slate-500 mt-2">Mínimo 2 jogadores recomendado</p>
                         </div>
                     ` : `
                         <p class="text-center text-slate-400 animate-pulse">Aguardando o anfitrião iniciar...</p>
@@ -734,7 +876,6 @@
             const overlay = document.getElementById('setup-overlay');
             const optionsContainer = document.getElementById('setup-options');
             
-            // If already selecting or selected, don't spam
             if (!overlay.classList.contains('hidden')) return;
 
             const options = [...ALL_GOV_STYLES].sort(() => 0.5 - Math.random()).slice(0, 4);
@@ -745,8 +886,7 @@
 
             optionsContainer.innerHTML = options.map(opt => `
                 <button onclick="Game.uiConfirmGovernment('${opt.id}')" class="gov-card w-full bg-slate-800 border border-slate-600 hover:border-gold-500 rounded-xl p-4 text-left group relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-                    <h3 class="text-gold-500 font-black uppercase text-sm mb-1 group-hover:text-white transition-colors">${opt.name}</h3>
+                    <h3 class="text-gold-500 font-black uppercase text-sm mb-1">${opt.name}</h3>
                     <p class="text-slate-300 text-xs leading-relaxed">${opt.desc}</p>
                     <div class="flex gap-2 mt-3">
                         ${Object.entries(opt.bonus).map(([k, v]) => `
@@ -761,9 +901,6 @@
             overlay.classList.remove('hidden');
         }
 
-        // --- RENDER HELPERS (Decisions, Country, etc) ---
-        // Same structure as before, but mapped to UI actions
-
         function renderDecisions(container) {
             const me = Game.getMyPlayer();
 
@@ -774,7 +911,7 @@
                             <i data-lucide="hourglass" class="w-10 h-10 text-gold-500 animate-pulse-slow"></i>
                         </div>
                         <h2 class="text-2xl font-bold text-white mb-2">Aguardando...</h2>
-                        <p class="text-slate-400 max-w-xs mx-auto">Sua decisão foi enviada. Espere os outros presidentes.</p>
+                        <p class="text-slate-400 max-w-xs mx-auto">Decisões finalizadas. Espere o fim do semestre.</p>
                     </div>
                 `;
                 return;
@@ -782,10 +919,16 @@
 
             if (me.currentDilemma) {
                 const d = me.currentDilemma;
+                // Show how many left in queue + 1 (current)
+                const remaining = (me.dilemmaQueue ? me.dilemmaQueue.length : 0) + 1;
+                
                 container.innerHTML = `
                     <div class="p-6 space-y-6 animate-fade-in pb-24">
-                        <h2 class="text-2xl font-bold text-white mb-2">Gabinete Presidencial</h2>
-                        <div class="bg-gradient-to-br from-slate-800 to-slate-900 border border-gold-500/50 rounded-2xl p-1 shadow-2xl relative overflow-hidden">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-2xl font-bold text-white">Gabinete</h2>
+                            <span class="bg-slate-700 text-white text-xs px-2 py-1 rounded-full">Restam: ${remaining}</span>
+                        </div>
+                        <div id="decision-card-container" class="bg-gradient-to-br from-slate-800 to-slate-900 border border-gold-500/50 rounded-2xl p-1 shadow-2xl relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-full h-1 bg-gold-500 z-10"></div>
                             <div class="p-5">
                                 <h3 class="text-gold-500 font-bold text-xs uppercase mb-2 tracking-wider">Decisão Obrigatória</h3>
@@ -804,19 +947,6 @@
                                         <p class="text-slate-300 text-xs mb-2">${d.no.desc}</p>
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                         <div>
-                            <h3 class="text-sm font-bold text-slate-400 uppercase mb-3">Ações Especiais</h3>
-                            <div class="grid grid-cols-2 gap-3">
-                                <button class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 active:bg-slate-700" onclick="alert('Use o Mapa para selecionar um alvo.')">
-                                    <i data-lucide="eye" class="text-red-400"></i>
-                                    <span class="text-sm font-bold text-white">Espionagem</span>
-                                </button>
-                                <button class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 active:bg-slate-700" onclick="alert('Use o Mapa para selecionar um alvo.')">
-                                    <i data-lucide="file-warning" class="text-purple-400"></i>
-                                    <span class="text-sm font-bold text-white">Gabinete do Ódio</span>
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -927,7 +1057,16 @@
 
         // Init
         window.addEventListener('DOMContentLoaded', () => {
-             router.navigate('home');
+             // Check if already in a game
+             if (Game.loadLocal() && Game.state.myId) {
+                 if (Game.state.isHost) {
+                     Game.initPeer(Game.state.roomCode);
+                 } else {
+                     Game.initPeer('client-' + Math.random().toString(36).substr(2,9));
+                 }
+             } else {
+                 router.navigate('home');
+             }
         });
 
     </script>
