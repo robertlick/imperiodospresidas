@@ -274,9 +274,9 @@
                     Game.state.connectionStatus = 'connected';
                     
                     if(Game.state.isHost) {
+                         // Only Host persists state for game continuity
                          Game.saveLocal();
                          router.navigate('lobby');
-                         // Show connection status
                          const el = document.getElementById('lobby-status');
                          if(el) el.innerText = 'Sala Online (Servidor Conectado)';
                          if(el) el.className = 'text-green-500 font-bold text-xs uppercase tracking-widest';
@@ -298,7 +298,6 @@
                     
                     if(err.type === 'unavailable-id') {
                         if (Game.state.isHost && !isRetry) {
-                            // ID Collision on Host Creation? Try new code
                             console.warn("Host ID taken. Generating new code...");
                             Game.createRoom(localStorage.getItem('p_name'), true);
                             return;
@@ -315,7 +314,6 @@
                     
                     showToast(msg, 'error');
                     
-                    // Update UI if in lobby
                     const el = document.getElementById('lobby-status');
                     if(el) {
                         el.innerText = 'Erro: ' + msg;
@@ -325,7 +323,6 @@
 
                 Game.peer.on('disconnected', () => {
                      console.log("Peer Disconnected from Server");
-                     // PeerJS allows reconnect
                      if(Game.peer && !Game.peer.destroyed) Game.peer.reconnect();
                 });
             },
@@ -368,7 +365,8 @@
                     console.log("Client: Connected to Host");
                     showToast("Conectado à sala!");
                     Game.hostConn = conn;
-                    Game.saveLocal();
+                    // Client does NOT save local state anymore to force fresh start
+                    // State comes from Host sync
                 });
 
                 conn.on('data', (data) => Game.handleData(data));
@@ -378,7 +376,6 @@
                     setTimeout(() => Game.exitGame(), 3000);
                 });
 
-                // Manual timeout check for connection
                 setTimeout(() => {
                     if(!Game.hostConn || !Game.hostConn.open) {
                         // showToast("Host demora a responder...", 'warning');
@@ -387,8 +384,6 @@
             },
 
             sendAction: (type, payload) => {
-                // Attach senderId to payload if missing
-                // This fixes the issue where client actions (like CHOOSE_GOV) were ignored by Host
                 const finalPayload = { ...payload };
                 if (!finalPayload.senderId) {
                     finalPayload.senderId = Game.state.myId;
@@ -409,9 +404,16 @@
                     Game.state = data.payload;
                     Game.state.myId = myId;
                     Game.state.isHost = isHost;
-                    Game.saveLocal(); 
+                    // Note: Client does NOT saveLocal() here to avoid persistence on reload
+                    if(isHost) Game.saveLocal(); 
+
                     router.renderCurrent();
                     router.renderHeader();
+                    return;
+                }
+                
+                if (data.type === 'GAME_IN_PROGRESS') {
+                    router.navigate('spectator');
                     return;
                 }
 
@@ -420,15 +422,30 @@
                         Game.handleAction(data.actionType, data.payload, null);
                     }
                     if (data.type === 'JOIN_INFO') {
-                        const newPlayer = Game.createPlayerStruct(data.payload.id, data.payload.name);
-                        const existing = Game.state.players.find(p => p.id === newPlayer.id);
-                        if(!existing) {
-                            Game.state.players.push(newPlayer);
-                            showToast(`${newPlayer.name} entrou!`);
+                        const incomingName = data.payload.name;
+                        const incomingId = data.payload.id;
+                        
+                        // Check if player exists by NAME
+                        const existingPlayerIndex = Game.state.players.findIndex(p => p.name === incomingName);
+                        
+                        if (existingPlayerIndex !== -1) {
+                            // REJOIN LOGIC
+                            console.log(`${incomingName} is rejoining.`);
+                            // Update the ID to the new connection ID
+                            Game.state.players[existingPlayerIndex].id = incomingId;
+                            showToast(`${incomingName} reconectou!`);
                             Game.syncState();
                         } else {
-                            // Player Reconnect - Sync state back to them
-                            Game.syncState();
+                            // NEW PLAYER LOGIC
+                            if (Game.state.phase === 'game') {
+                                // Reject if game started and name not found
+                                connSource.send({ type: 'GAME_IN_PROGRESS' });
+                            } else {
+                                const newPlayer = Game.createPlayerStruct(incomingId, incomingName);
+                                Game.state.players.push(newPlayer);
+                                showToast(`${newPlayer.name} entrou!`);
+                                Game.syncState();
+                            }
                         }
                     }
                 } else {
@@ -528,7 +545,6 @@
             createRoom: (name, forceNewCode = false) => {
                 localStorage.setItem('p_name', name);
                 
-                // 5 Char String Code (Upper Case AlphaNum)
                 const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
                 let code = "";
                 for(let i=0; i<5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -546,7 +562,6 @@
 
             joinRoom: (name, code) => {
                 localStorage.setItem('p_name', name);
-                // Standardize Code
                 code = code.toUpperCase().trim();
                 
                 const myId = 'p-' + Date.now() + Math.random().toString(36).substr(2, 5);
@@ -554,7 +569,6 @@
                 Game.state.myId = myId;
                 Game.state.isHost = false;
                 
-                // Random ID for client Peer
                 const randomClientId = 'client-' + Math.random().toString(36).substr(2, 9);
                 Game.initPeer(randomClientId);
             },
@@ -717,6 +731,11 @@
                 const container = document.getElementById('app-container');
                 container.innerHTML = '';
                 
+                if (router.current === 'spectator') {
+                    renderSpectator(container);
+                    return;
+                }
+
                 if (Game.state.phase === 'game' && router.current === 'lobby') {
                     router.navigate('country');
                     return;
@@ -743,7 +762,6 @@
                     showGovernmentSelection();
                     return; 
                 } else if (me.style) {
-                     // Ensure overlay is hidden if style is set (e.g. after refresh/sync)
                      document.getElementById('setup-overlay').classList.add('hidden');
                 }
 
@@ -858,6 +876,17 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            `;
+        }
+
+        function renderSpectator(container) {
+            container.innerHTML = `
+                <div class="h-full flex flex-col justify-center items-center p-6 bg-dark-900 animate-fade-in text-center">
+                    <i data-lucide="eye" class="w-16 h-16 text-slate-500 mb-4 animate-pulse"></i>
+                    <h2 class="text-2xl font-bold text-white mb-2">Partida em Andamento</h2>
+                    <p class="text-slate-400 mb-6">Aguarde o fim da partida para entrar na próxima rodada.</p>
+                    <button onclick="Game.exitGame()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg">Voltar</button>
                 </div>
             `;
         }
@@ -1053,7 +1082,30 @@
             `;
         }
         function renderRelations(container) {
-             container.innerHTML = `<div class="p-6 space-y-4 animate-fade-in pb-24"><h2 class="text-2xl font-bold text-white mb-4">Relações Exteriores</h2><div class="space-y-2">${Game.state.players.map(p => `<div class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center"><div class="flex items-center gap-3"><div class="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white text-xs border border-slate-500">${p.country ? p.country.id.toUpperCase() : '??'}</div><div><div class="font-bold text-white">${p.name}</div><div class="text-xs text-slate-400">${p.country ? p.country.name : '...'}</div></div></div></div>`).join('')}</div></div>`;
+             container.innerHTML = `
+             <div class="p-6 space-y-4 animate-fade-in pb-24">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-white">Relações Exteriores</h2>
+                    <div class="bg-slate-800 border border-slate-600 px-3 py-1 rounded-lg text-xs font-mono text-gold-500 tracking-widest">
+                        CODE: ${Game.state.roomCode}
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    ${Game.state.players.map(p => `
+                        <div class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white text-xs border border-slate-500">
+                                    ${p.country ? p.country.id.toUpperCase() : '??'}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-white">${p.name}</div>
+                                    <div class="text-xs text-slate-400">${p.country ? p.country.name : '...'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+             </div>`;
         }
         function renderNews(container) {
              const me = Game.getMyPlayer();
@@ -1101,17 +1153,8 @@
 
         // Init
         window.addEventListener('DOMContentLoaded', () => {
-             if (Game.loadLocal() && Game.state.myId) {
-                 if (Game.state.isHost) {
-                     Game.initPeer(Game.state.roomCode);
-                 } else {
-                     // For clients, local ID is less sensitive for collisions, but room code matters
-                     const randomClientId = 'client-' + Math.random().toString(36).substr(2, 9);
-                     Game.initPeer(randomClientId);
-                 }
-             } else {
-                 router.navigate('home');
-             }
+             // Disabled auto-load to force clean state on refresh
+             router.navigate('home');
         });
 
     </script>
