@@ -57,7 +57,7 @@
         .has-nav { padding-bottom: 110px; }
         .scroll-hide::-webkit-scrollbar { display: none; }
         
-        .country-path { transition: all 0.2s ease; cursor: pointer; stroke-linejoin: round; stroke-width: 1; }
+        .country-path { transition: all 0.2s ease; cursor: pointer; stroke-linejoin: round; stroke-width: 1; pointer-events: auto; }
         .country-path:hover { filter: brightness(1.2); stroke: white; stroke-width: 2; z-index: 10; position: relative; }
         
         .glass-panel { background: rgba(17, 24, 39, 0.95); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.05); }
@@ -109,7 +109,7 @@
              <div class="flex items-center gap-1 text-purple-400">
                  <i data-lucide="shield" class="w-3 h-3"></i> <span id="stat-stab">50%</span>
              </div>
-             <div class="flex items-center gap-1 text-gold-500">
+             <div class="flex items-center gap-1 text-purple-500">
                  <i data-lucide="crown" class="w-3 h-3"></i> <span id="stat-inf">0</span>
              </div>
         </div>
@@ -198,7 +198,6 @@
             { id: 'b_builder', name: 'Arquiteto', desc: 'Focou em infraestrutura massiva.', icon: 'hammer', color: 'text-orange-500', bg: 'bg-orange-900' }
         ];
 
-        // PROJECTS = Long Term Investments (Duration is in Semesters)
         const PROJECTS = [
             { id: 'p_hosp', name: 'SUS Continental', desc: 'Saúde gratuita.', cost: { eco: 25 }, duration: 4, yield: { pop: 5 }, badge: 'b_dove' },
             { id: 'p_road', name: 'Ferrovia Bioceânica', desc: 'Logística.', cost: { eco: 40 }, duration: 4, yield: { eco: 10 }, badge: 'b_builder' },
@@ -209,7 +208,6 @@
             { id: 'p_fest', name: 'Olimpíadas', desc: 'Turismo e imagem.', cost: { eco: 45 }, duration: 2, yield: { pop: 20 } }
         ];
 
-        // INVESTMENTS = Instant Trade-offs
         const INVESTMENT_POOL = [
             { id: 'i_1', name: 'Subsídio Agrícola', desc: 'Apoio rural.', cost: { eco: 10 }, gain: { pop: 15 } },
             { id: 'i_2', name: 'Corte de Gastos', desc: 'Austeridade.', cost: { pop: 10 }, gain: { eco: 15 } },
@@ -222,59 +220,45 @@
         ];
 
         const DECISION_POOL = [
-            // Mandatory First
             { id: 'd_tax', text: "Reforma Tributária: Taxar grandes fortunas para salvar o orçamento?", 
               yes: { label: "Taxar", desc: "+Caixa, -Apoio Elite", eff: { eco: 15, stab: -5 }, badge: 'b_dove' }, 
               no: { label: "Isentar", desc: "Agradar Mercado", eff: { eco: 5, pop: -5 }, badge: 'b_gold' } },
-            
-            // General
             { id: 'd_flu', text: "Pandemia Viral: Um novo vírus se espalha. Fechar fronteiras?", 
               yes: { label: "Fechar Tudo", desc: "Colapso econômico", eff: { eco: -20, pop: 10 } }, 
               no: { label: "Manter Aberto", desc: "Risco de saúde", eff: { eco: 5, pop: -15 } } },
-              
             { id: 'd_coup', text: "Rumores de Golpe: Generais exigem mais poder.", 
               yes: { label: "Ceder Poder", desc: "Governo fantoche", eff: { stab: 20, pop: -15 }, badge: 'b_iron' }, 
               no: { label: "Expurgar", desc: "Arriscado", eff: { stab: -15, pop: 10 } } },
-
             { id: 'd_oil', text: "Reserva de Petróleo: Descoberta em área indígena.", 
               yes: { label: "Explorar", desc: "Lucro imediato", eff: { eco: 20, pop: -10 }, badge: 'b_gold' }, 
               no: { label: "Proteger", desc: "Preservação", eff: { pop: 15, eco: -5 } } },
-            
             { id: 'd_debt', text: "Dívida Externa: FMI exige cortes drásticos.", 
               yes: { label: "Aceitar", desc: "Austeridade", eff: { eco: 10, pop: -15 } }, 
               no: { label: "Calote", desc: "Isolamento", eff: { eco: -15, stab: 10 } } },
-
             { id: 'd_midia', text: "Controle de Mídia: Jornalistas criticam o governo.", 
               yes: { label: "Censurar", desc: "Lei da mordaça", eff: { stab: 15, pop: -10 }, badge: 'b_spy' }, 
               no: { label: "Liberdade", desc: "Imprensa livre", eff: { pop: 10, stab: -5 } } },
-              
             { id: 'd_crime', text: "Onda de Crime: Cartéis dominam as favelas.", 
               yes: { label: "Invasão Militar", desc: "Guerra urbana", eff: { stab: 15, eco: -10 }, badge: 'b_iron' }, 
               no: { label: "Social", desc: "Programas de base", eff: { pop: 15, eco: -15 } } },
-
             { id: 'd_trade', text: "Acordo China: Vender estatais estratégicas?", 
               yes: { label: "Vender", desc: "Dinheiro rápido", eff: { eco: 20, stab: -5 }, badge: 'b_gold' }, 
               no: { label: "Nacionalizar", desc: "Soberania", eff: { stab: 10, eco: -10 } } },
-              
             { id: 'd_edu', text: "Greve dos Professores: Exigem aumento salarial.", 
               yes: { label: "Aumentar", desc: "Custo alto", eff: { pop: 15, eco: -10 } }, 
               no: { label: "Ignorar", desc: "Greve continua", eff: { pop: -15, eco: 5 } } },
-
             { id: 'd_spy_sat', text: "Escândalo de Espionagem: Vazamento de dados.", 
               yes: { label: "Abafar", desc: "Esconder tudo", eff: { stab: 10, pop: -10 }, badge: 'b_spy' }, 
               no: { label: "Investigar", desc: "Transparência", eff: { pop: 10, stab: -10 } } }
         ];
 
-        // EPIC EVENTS - Overpowered, 8% chance, Special UI
         const EPIC_POOL = [
             { id: 'e_city', text: "MILAGRE ARQUEOLÓGICO: Um terremoto revelou uma Cidade de Ouro Perdida intacta.", isEpic: true,
               yes: { label: "Aprovar", desc: "Focar em Turismo Global", eff: { eco: 30, pop: 20 } },
               no: { label: "Vetar", desc: "Explorar tesouros ocultos", eff: { eco: 50, pop: -10 } } },
-
             { id: 'e_alien', text: "CONTATO IMEDIATO: Uma nave pousou no planalto central. Eles oferecem tecnologia.", isEpic: true,
               yes: { label: "Aceitar", desc: "Tecnologia infinita", eff: { eco: 40, stab: 20 } },
               no: { label: "Recusar", desc: "O povo teme o desconhecido", eff: { stab: 40, pop: 10 } } },
-              
             { id: 'e_lotto', text: "SORTE GRANDE: Reservas massivas de Lítio encontradas em todo o país.", isEpic: true,
               yes: { label: "Estatizar", desc: "O povo é dono", eff: { eco: 25, pop: 25 } },
               no: { label: "Privatizar", desc: "Eficiência máxima", eff: { eco: 60, pop: -20 } } }
@@ -304,23 +288,14 @@
 
             calcEff: (val, type, player, isEpic) => {
                 if(!val) return 0;
-                // Get multiplier
                 const mult = player.style ? (player.style.bonus[type] || 1) : 1;
-                // Apply multiplier only if positive gain
                 let final = val * (val > 0 ? mult : 1);
-                
-                // Round to nearest 5
                 final = Math.round(final / 5) * 5;
-                
-                // Ensure non-zero if base was non-zero
                 if(val !== 0 && final === 0) final = val > 0 ? 5 : -5;
-                
-                // Cap at 20 for non-epic (strictly -20 to 20)
                 if(!isEpic) {
                     if(final > 20) final = 20;
                     if(final < -20) final = -20;
                 }
-                
                 return final;
             },
 
@@ -339,16 +314,12 @@
                     c.on('data', d => Game.handleData(d, c));
                     c.send({t:'SYNC', s:Game.state});
                 });
-                Game.peer.on('error', err => showToast("Erro: " + err.type, 'error'));
             },
 
             joinRoom: (name, code) => {
                 if(!name || !code) return showToast("Preencha tudo!", "error");
-                
-                // Visual feedback that we are trying to join
                 const btn = document.querySelector('button.flex-1.bg-blue-600');
                 if(btn) { btn.innerText = 'Entrando...'; btn.disabled = true; }
-                
                 localStorage.setItem('pname', name);
                 Game.state.me = 'client-'+Date.now();
                 Game.peer = new Peer();
@@ -372,7 +343,6 @@
 
             leaveRoom: () => {
                 if(Game.state.host) {
-                    // Host closing logic
                     Game.conn.forEach(c => c.send({t:'KICK', reason: 'A sala foi encerrada pelo líder.'}));
                     setTimeout(() => location.reload(), 500);
                 } else {
@@ -405,46 +375,36 @@
                     return;
                 }
                 if(d.t === 'SYNC') {
-                    // CRITICAL: Restore local identity before proceeding
                     const myId = Game.state.me;
                     const amIHost = Game.state.host;
+                    const oldPhase = Game.state.phase;
                     
                     Game.state = d.s;
-                    
-                    // Restore local ID and host status to avoid identity crisis
                     Game.state.me = myId;
                     Game.state.host = amIHost;
 
+                    // Atualiza apenas os números do topo sem recarregar a tela
                     Game.updateHUD();
                     
                     const me = Game.state.players.find(p => p.id === Game.state.me);
 
-                    // --- ROUTING LOGIC ---
-                    if (Game.state.phase === 'reveal') {
-                        if (router.cur !== 'reveal') router.nav('reveal');
-                    } 
-                    else if (Game.state.phase === 'game') {
-                        if (['lobby', 'reveal', 'home'].includes(router.cur)) {
-                            if (me) {
-                                router.nav(me.style ? 'country' : 'setup');
-                            }
+                    // Só renderiza a tela inteira se a fase mudou
+                    if (Game.state.phase !== oldPhase) {
+                        if (Game.state.phase === 'reveal') router.nav('reveal');
+                        else if (Game.state.phase === 'game') {
+                            if (me) router.nav(me.style ? 'country' : 'setup');
                         }
-                    }
-                    else if (Game.state.phase === 'lobby' && router.cur !== 'lobby' && !Game.state.host) {
-                        router.nav('lobby');
+                    } else {
+                        // Se estivermos em uma aba que precisa de refresh visual, chamamos o render
+                        // mas de forma controlada para evitar o "pisca-pisca" de recarregamento
+                        if(router.cur === 'lobby') router.render();
                     }
                     
                     if(me) {
                         const relBadge = document.getElementById('badge-relations');
                         if(relBadge) relBadge.classList.toggle('hidden', (me.requests.length + (me.notifications || 0)) === 0);
-                        
                         const decBadge = document.getElementById('badge-decision');
                         if(decBadge) decBadge.classList.toggle('hidden', me.ready);
-                    }
-
-                    if(['country', 'map', 'decisions', 'relations', 'news', 'lobby'].includes(router.cur)) {
-                        Game.updateHUD();
-                        router.render();
                     }
                 }
                 if(Game.state.host) {
@@ -475,7 +435,6 @@
                     document.getElementById('stat-stab').innerText = Math.round(me.stats.stab) + '%';
                     document.getElementById('stat-inf').innerText = me.influence || 0;
                 }
-                
                 const rd = document.getElementById('round-display');
                 if(rd) {
                     const year = Math.ceil(Game.state.round / 2);
@@ -492,18 +451,14 @@
                     const style = GOV_STYLES.find(s=>s.id===payload.style);
                     if(style) {
                         p.style = style;
-                        // Apply Gov Style Initial Bonus explicitly
                         if(style.initial) {
                             if(style.initial.eco) p.stats.eco += style.initial.eco;
                             if(style.initial.pop) p.stats.pop += style.initial.pop;
                             if(style.initial.stab) p.stats.stab += style.initial.stab;
-                            
-                            // Log News for Government Choice
-                            const changes = Object.entries(style.initial).map(([k,v]) => `${k.toUpperCase()} ${v>0?'+':''}${v}`).join(', ');
                             Game.state.news.general.unshift({
                                 title: p.country.name,
-                                text: `${p.country.name} instituiu: ${style.name}.`,
-                                detail: `(${changes})`,
+                                text: `${p.country.name} instituiu a doutrina ${style.name}.`,
+                                detail: "",
                                 type: 'info',
                                 round: Game.state.round
                             });
@@ -516,7 +471,6 @@
                     if(p.decisionQueue.length > 0) {
                         const currentDecision = p.decisionQueue[0];
                         const chosenOption = payload.choice === 'yes' ? currentDecision.yes : currentDecision.no;
-
                         if(chosenOption.eff) {
                              const isEpic = currentDecision.isEpic || false;
                              Object.entries(chosenOption.eff).forEach(([k, v]) => {
@@ -524,40 +478,25 @@
                                  p.stats[k] += finalVal;
                              });
                         }
-                        
-                        // Add news about decision
-                        const newsText = `${p.country.name} aprovou: ${chosenOption.label}`;
-                        // We don't spam general news with every decision, only Epics or Major impacts could go here, 
-                        // but user asked for updating news. Let's add significant ones.
-                        if(Math.random() > 0.5 || currentDecision.isEpic) {
-                             Game.state.news.general.unshift({
-                                title: `SEM ${Game.state.round}`,
-                                text: `${p.country.name} decidiu: ${chosenOption.label} em "${currentDecision.text.substring(0,30)}..."`,
-                                type: 'info',
-                                round: Game.state.round
-                            });
-                        }
+                        // Notícia sobre a escolha
+                        Game.state.news.general.unshift({
+                            title: p.country.name,
+                            text: `${p.country.name} aprovou: "${chosenOption.label}" em resposta a ${currentDecision.text.substring(0,25)}...`,
+                            type: 'info',
+                            round: Game.state.round
+                        });
                         
                         if(chosenOption.badge && !p.badges.includes(chosenOption.badge)) p.badges.push(chosenOption.badge);
-
                         p.decisionQueue.shift();
                         if(chosenOption.consequence) {
-                            p.decisionQueue.unshift({
-                                ...chosenOption.consequence,
-                                isConsequence: true, id: 'cons_' + Date.now()
-                            });
-                            // Consequence doesnt increase max decisions, just extends the queue
+                            p.decisionQueue.unshift({...chosenOption.consequence, isConsequence: true, id: 'cons_' + Date.now()});
                             p.maxDecisions++;
                         }
-                        // removed automatic ready set
                         Game.clampStats(p);
                     }
                 }
                 
-                if(type === 'READY') {
-                    p.ready = true;
-                    Game.checkTurnEnd();
-                }
+                if(type === 'READY') { p.ready = true; Game.checkTurnEnd(); }
 
                 if(type === 'INVEST') {
                     if(p.investmentCount >= 1) return;
@@ -568,8 +507,8 @@
                         if(canBuy) {
                             if(inv.cost) for(let k in inv.cost) p.stats[k] -= inv.cost[k];
                             if(inv.gain) for(let k in inv.gain) p.stats[k] += inv.gain[k];
-                            
                             p.investmentCount++;
+                            Game.state.news.general.unshift({ title: p.country.name, text: `${p.country.name} investiu em ${inv.name}.`, type: 'good', round: Game.state.round });
                             Game.clampStats(p);
                         }
                     }
@@ -581,27 +520,11 @@
                         if(p.stats.eco >= (proj.cost.eco || 0) && p.stats.pop >= (proj.cost.pop || 0)) {
                             p.stats.eco -= (proj.cost.eco || 0);
                             p.stats.pop -= (proj.cost.pop || 0);
-                            
-                            // Initialize active project
                             if(!p.activeProjects) p.activeProjects = [];
-                            p.activeProjects.push({
-                                id: proj.id,
-                                name: proj.name,
-                                yield: proj.yield,
-                                remaining: proj.duration,
-                                maxDuration: proj.duration
-                            });
-                            
+                            p.activeProjects.push({ id: proj.id, name: proj.name, yield: proj.yield, remaining: proj.duration, maxDuration: proj.duration });
                             if(proj.badge && !p.badges.includes(proj.badge)) p.badges.push(proj.badge);
                             p.projects.push(proj.id);
-                            
-                            Game.state.news.general.unshift({
-                                title: `SEM ${Game.state.round}`,
-                                text: `NOVA OBRA: ${p.country.name} iniciou ${proj.name}.`,
-                                type: 'good',
-                                round: Game.state.round
-                            });
-
+                            Game.state.news.general.unshift({ title: p.country.name, text: `${p.country.name} iniciou o grande projeto: ${proj.name}.`, type: 'good', round: Game.state.round });
                             Game.clampStats(p);
                         }
                     }
@@ -609,23 +532,14 @@
 
                 if(type === 'INVITE') {
                     const target = Game.state.players.find(pl => pl.id === payload.targetId);
-                    if(target) {
-                        target.requests.push({ id: Date.now(), type: payload.invType, from: p.id, fromName: p.name, fromCountry: p.country.name });
-                    }
+                    if(target) target.requests.push({ id: Date.now(), type: payload.invType, from: p.id, fromName: p.name, fromCountry: p.country.name });
                 }
 
-                if(type === 'RESPOND') {
-                    p.requests = p.requests.filter(r => r.id !== payload.reqId);
-                }
+                if(type === 'RESPOND') { p.requests = p.requests.filter(r => r.id !== payload.reqId); }
                 
                 if(type === 'ASK_HELP') {
                     p.helpRequested = true;
-                    Game.state.news.general.unshift({
-                         title: 'CRISE',
-                         text: `${p.country.name} pede socorro internacional!`,
-                         type: 'bad',
-                         round: Game.state.round
-                    });
+                    Game.state.news.general.unshift({ title: 'CRISE', text: `${p.country.name} pede socorro internacional!`, type: 'bad', round: Game.state.round });
                 }
                 
                 if(type === 'SEND_HELP') {
@@ -635,25 +549,13 @@
                          const cost = isTotal ? 20 : 10;
                          const infGain = isTotal ? 15 : 5;
                          const statGain = isTotal ? 25 : 10;
-                         
                          if(p.stats.eco >= cost) {
                              p.stats.eco -= cost;
                              p.influence = (p.influence || 0) + infGain;
-                             target.stats.eco += statGain;
-                             target.stats.pop += statGain;
-                             target.stats.stab += statGain;
-                             target.helpRequested = false; // Resolved
-                             
-                             Game.clampStats(p);
-                             Game.clampStats(target);
-                             
-                             // Add news event about it
-                             Game.state.news.general.unshift({
-                                 title: 'AJUDA',
-                                 text: `${p.country.name} salvou ${target.country.name} com ajuda ${isTotal ? 'financeira' : 'humanitária'}.`,
-                                 type: 'good',
-                                 round: Game.state.round
-                             });
+                             target.stats.eco += statGain; target.stats.pop += statGain; target.stats.stab += statGain;
+                             target.helpRequested = false;
+                             Game.clampStats(p); Game.clampStats(target);
+                             Game.state.news.general.unshift({ title: 'AJUDA', text: `${p.country.name} enviou ajuda para salvar ${target.country.name}.`, type: 'good', round: Game.state.round });
                          }
                      }
                 }
@@ -669,39 +571,25 @@
                 if(type === 'SPY') {
                     const target = Game.state.players.find(pl => pl.id === payload.targetId);
                     if(target) {
-                        if(target.style && target.style.immune.includes('spy')) {
-                            p.stats.eco -= 20;
-                        } else {
-                            target.stats.stab -= 15;
-                            target.stats.pop -= 10;
-                            p.stats.eco -= 20;
-                        }
-                        Game.clampStats(target);
-                        Game.clampStats(p);
+                        if(target.style && target.style.immune.includes('spy')) { p.stats.eco -= 20; } 
+                        else { target.stats.stab -= 15; target.stats.pop -= 10; p.stats.eco -= 20; }
+                        Game.clampStats(target); Game.clampStats(p);
                     }
                 }
 
                 if(type === 'READ_NOTIFS') p.notifications = 0;
-
                 Game.sync();
             },
 
             checkTurnEnd: () => {
                 const activePlayers = Game.state.players.filter(p => p.country);
-                if(activePlayers.length > 0 && activePlayers.every(p => p.ready)) {
-                    setTimeout(() => Game.nextTurn(), 1000);
-                }
+                if(activePlayers.length > 0 && activePlayers.every(p => p.ready)) setTimeout(() => Game.nextTurn(), 1000);
             },
 
             nextTurn: () => {
                 Game.state.round++;
-                if(Game.state.round > 8) { /* End Game */ }
-                
                 Game.state.players.forEach(p => {
-                    p.ready = false;
-                    p.investmentCount = 0;
-                    
-                    // Process Active Projects (Long Term)
+                    p.ready = false; p.investmentCount = 0;
                     if(p.activeProjects && p.activeProjects.length > 0) {
                         for (let i = p.activeProjects.length - 1; i >= 0; i--) {
                             const ap = p.activeProjects[i];
@@ -714,97 +602,58 @@
                             if(ap.remaining <= 0) p.activeProjects.splice(i, 1);
                         }
                     }
-
-                    // Consequences of Extremes
-                    // < 20 (Crisis / Death Spiral)
                     if(p.stats.eco < 20) { p.stats.pop -= 10; p.stats.stab -= 10; } 
                     if(p.stats.pop < 20) { p.stats.stab -= 15; p.stats.eco -= 5; }
                     if(p.stats.stab < 20) { p.stats.eco -= 15; p.stats.pop -= 5; }
-
-                    // > 80 (Side Effects of Excess)
-                    if(p.stats.eco > 80) { p.stats.pop -= 5; } // Inequality
-                    if(p.stats.pop > 80) { p.stats.eco -= 5; } // High Consumption / Populist Spending
-                    if(p.stats.stab > 80) { p.stats.eco -= 5; } // Stagnation / Bureaucracy
-
                     const deck = [...DECISION_POOL].filter(d => d.id !== 'd_tax').sort(()=>0.5-Math.random());
-                    
-                    // First 2 semesters (Year 1) have more decisions
                     const count = Game.state.round <= 2 ? 4 : 3;
-                    
                     p.decisionQueue = deck.slice(0, count);
-                    
-                    // 8% Chance for Epic Event (replaces last decision)
                     if (Math.random() < 0.08) {
                         const epic = EPIC_POOL[Math.floor(Math.random() * EPIC_POOL.length)];
-                        if(p.decisionQueue.length > 0) {
-                            p.decisionQueue[p.decisionQueue.length - 1] = epic;
-                        }
+                        if(p.decisionQueue.length > 0) p.decisionQueue[p.decisionQueue.length - 1] = epic;
                     }
-
                     p.maxDecisions = p.decisionQueue.length;
-                    
                     const invDeck = [...INVESTMENT_POOL].sort(()=>0.5-Math.random());
                     p.availableInvestments = invDeck.slice(0, 4);
-
                     Game.clampStats(p);
                 });
                 Game.generateNews();
                 Game.sync();
+                router.render();
             },
 
             startMatch: () => {
-                // CRITICAL FIX: Only Host runs this
                 const playable = COUNTRIES.filter(c => !c.neutral);
                 const shuffled = [...playable].sort(()=>0.5-Math.random());
                 const year = Math.ceil(Game.state.round / 2);
                 const sem = (Game.state.round % 2 === 0) ? 2 : 1;
                 const dateStr = `Ano ${year}/4 • Sem ${sem}/2`;
-
-                // Reset News
                 Game.state.news = {
                     main: { title: "Novos Presidentes Assumem o Poder", desc: "Uma nova era política começa na América do Sul. O mundo observa atentamente.", date: dateStr },
                     general: [{ title: 'Mundo', text: "Mercados globais reagem à posse dos novos líderes.", round: 1 }]
                 };
-
-                // Assign to players in state
                 Game.state.players.forEach((p,i) => {
                     p.country = shuffled[i % shuffled.length];
-                    p.activeProjects = [];
-                    p.influence = 0;
-                    
-                    // Round 1: Tax + 3 Random = 4 Decisions
+                    p.activeProjects = []; p.influence = 0;
                     const randomDecs = [...DECISION_POOL].filter(d => d.id !== 'd_tax').sort(()=>0.5-Math.random()).slice(0,3);
                     p.decisionQueue = [DECISION_POOL.find(d => d.id === 'd_tax'), ...randomDecs];
-                    
-                    // 8% Chance for Epic Event (replaces last decision)
                     if (Math.random() < 0.08) {
                         const epic = EPIC_POOL[Math.floor(Math.random() * EPIC_POOL.length)];
                         p.decisionQueue[p.decisionQueue.length - 1] = epic;
                     }
-
                     p.maxDecisions = p.decisionQueue.length;
-                    
                     const invDeck = [...INVESTMENT_POOL].sort(()=>0.5-Math.random());
                     p.availableInvestments = invDeck.slice(0, 4);
-                    
-                    // Assign 4 Random Gov Options - UNIQUE PER PLAYER NOW
                     const govDeck = [...GOV_STYLES].sort(()=>0.5-Math.random());
                     p.govOptions = govDeck.slice(0, 4).map(g => g.id);
                 });
-                
                 Game.state.phase = 'reveal';
                 Game.state.round = 1;
-                Game.sync(); // Broadcast finalized setup to everyone
-                
-                // Force Host Navigation immediately
+                Game.sync();
                 router.nav('reveal');
-
-                // Host handles the phase timer
                 setTimeout(() => {
                     Game.state.phase = 'game';
                     Game.sync();
-                    // Force Host Navigation
-                    const me = Game.state.players.find(p => p.id === Game.state.me);
                     router.nav('setup');
                 }, 4000);
             },
@@ -812,33 +661,25 @@
             generateNews: () => {
                 const players = Game.state.players.filter(p => p.country);
                 let main = null;
-                // We don't overwrite general news anymore, we prepend to it.
-                // Just create main headline here.
-                
                 const year = Math.ceil(Game.state.round / 2);
                 const sem = (Game.state.round % 2 === 0) ? 2 : 1;
                 const dateStr = `Ano ${year}/4 • Sem ${sem}/2`;
-
-                // Find extremes for headline
                 const sortedEco = [...players].sort((a,b) => b.stats.eco - a.stats.eco);
                 const bestEco = sortedEco[0];
                 const worstStab = [...players].sort((a,b) => a.stats.stab - b.stats.stab)[0];
-                
-                // Main News Decision
                 if (worstStab.stats.stab < 30) {
                     main = { title: `Caos em ${worstStab.country.name}`, desc: "Protestos violentos tomam as ruas. O governo perde o controle.", date: dateStr };
                 } else if (bestEco.stats.eco > 80) {
                     main = { title: `Milagre Econômico em ${bestEco.country.name}`, desc: "Analistas internacionais elogiam o crescimento recorde.", date: dateStr };
                 } else {
                     const randomEvents = [
-                            { t: "Cimeira do Clima", d: "Líderes debatem metas de carbono." },
-                            { t: "Tensão Comercial", d: "Tarifas de importação geram atrito no bloco." },
-                            { t: "Avanço Tecnológico", d: "Novas startups impulsionam a região." }
+                        { t: "Cimeira do Clima", d: "Líderes debatem metas de carbono." },
+                        { t: "Tensão Comercial", d: "Tarifas de importação geram atrito no bloco." },
+                        { t: "Avanço Tecnológico", d: "Novas startups impulsionam a região." }
                     ];
                     const ev = randomEvents[Math.floor(Math.random()*randomEvents.length)];
                     main = { title: ev.t, desc: ev.d, date: dateStr };
                 }
-
                 Game.state.news.main = main;
             },
 
@@ -857,18 +698,18 @@
                 }, 2500);
             },
 
-            resolveDecision: (choice) => Game.act('DECIDE', { choice: choice }),
-            confirmReady: () => Game.act('READY', {}),
-            buyInvestment: (invId) => Game.act('INVEST', { invId: invId }),
-            buyProject: (pid) => { Game.act('PROJECT', { pid: pid }); document.getElementById('modal-overlay').classList.add('hidden'); },
+            resolveDecision: (choice) => { Game.act('DECIDE', { choice: choice }); router.render(); },
+            confirmReady: () => { Game.act('READY', {}); router.render(); },
+            buyInvestment: (invId) => { Game.act('INVEST', { invId: invId }); router.render(); },
+            buyProject: (pid) => { Game.act('PROJECT', { pid: pid }); document.getElementById('modal-overlay').classList.add('hidden'); router.render(); },
             sendInvite: (type, targetId) => { showToast('Convite enviado!'); Game.act('INVITE', { invType: type, targetId }); document.getElementById('modal-overlay').classList.add('hidden'); },
             sendChat: (targetId, text) => { if(!text) return; Game.act('CHAT', { targetId, text }); document.getElementById('chat-input').value = ''; },
-            sendSpy: (targetId) => { showToast('Operação de Fake News iniciada...'); Game.act('SPY', { targetId }); document.getElementById('modal-overlay').classList.add('hidden'); },
-            askHelp: () => { Game.act('ASK_HELP', {}); showToast('Pedido de ajuda enviado!'); router.render(); },
-            sendHelp: (targetId, mode) => { Game.act('SEND_HELP', {targetId, mode}); showToast('Ajuda enviada!'); document.getElementById('modal-overlay').classList.add('hidden'); },
+            sendSpy: (targetId) => { showToast('Iniciando operação...'); Game.act('SPY', { targetId }); document.getElementById('modal-overlay').classList.add('hidden'); },
+            askHelp: () => { Game.act('ASK_HELP', {}); showToast('Socorro enviado ao mapa!'); router.render(); },
+            sendHelp: (targetId, mode) => { Game.act('SEND_HELP', {targetId, mode}); showToast('Ajuda enviada!'); document.getElementById('modal-overlay').classList.add('hidden'); router.render(); },
             respondRequest: (reqId, response) => { showToast(response === 'yes' ? 'Aceito!' : 'Recusado'); Game.act('RESPOND', { reqId, response }); router.render(); },
             clampStats: (p) => { ['eco','pop','stab'].forEach(k => p.stats[k] = Math.max(0, Math.min(100, p.stats[k]))); },
-            sync: () => { Game.save(); Game.conn.forEach(c => c.send({t:'SYNC', s:Game.state})); Game.updateHUD(); router.render(); },
+            sync: () => { Game.save(); Game.conn.forEach(c => c.send({t:'SYNC', s:Game.state})); Game.updateHUD(); },
             save: () => localStorage.setItem('pres_save', JSON.stringify(Game.state)),
             exitGame: () => { localStorage.removeItem('pres_save'); location.reload(); },
             act: (type, payload) => {
@@ -879,29 +720,24 @@
         };
 
         const router = {
-            cur: 'home',
-            newsTab: 'main', 
+            cur: 'home', newsTab: 'main', 
             navigate: (v) => { router.nav(v); },
             nav: (v) => { 
                 router.cur = v; 
                 router.render(); 
                 Game.updateHUD();
-                
                 const hud = ['country','map','decisions','relations','news'].includes(v);
                 const header = document.getElementById('game-header');
                 const nav = document.getElementById('game-nav');
                 const container = document.getElementById('app-container');
-
                 if(hud) {
-                    header.classList.remove('hidden');
-                    nav.classList.remove('hidden');
+                    header.classList.remove('hidden'); nav.classList.remove('hidden');
                     container.classList.add('has-nav');
                     const me = Game.state.players.find(p => p.id === Game.state.me);
                     if(me && me.country) document.getElementById('header-country').innerText = me.country.name;
                     if(v === 'relations') Game.act('READ_NOTIFS', {});
                 } else {
-                    header.classList.add('hidden');
-                    nav.classList.add('hidden');
+                    header.classList.add('hidden'); nav.classList.add('hidden');
                     container.classList.remove('has-nav');
                 }
                 document.querySelectorAll('.nav-btn').forEach(b => {
@@ -925,37 +761,22 @@
             }
         };
 
-        // --- VIEWS ---
         function renderHome(c) {
             c.innerHTML = `<div class="h-full flex flex-col justify-center items-center p-6 animate-fade-in"><i data-lucide="globe-2" class="w-20 h-20 text-gold-500 mb-4"></i><h1 class="text-3xl font-black text-center mb-8">IMPÉRIO DOS<br><span class="text-gold-500">PRESIDENTES</span></h1><div class="w-full max-w-xs space-y-4"><input id="inp-name" class="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 focus:border-gold-500 outline-none" placeholder="Seu Nome" value="${localStorage.getItem('pname')||''}"><button onclick="Game.createRoom(document.getElementById('inp-name').value)" class="w-full bg-gold-500 text-dark-900 font-bold py-4 rounded-xl">Criar Sala</button><div class="flex gap-2"><input id="inp-code" class="w-24 bg-slate-800 text-center p-4 rounded-xl border border-slate-600 uppercase" placeholder="COD"><button onclick="Game.joinRoom(document.getElementById('inp-name').value, document.getElementById('inp-code').value)" class="flex-1 bg-blue-600 font-bold py-4 rounded-xl">Entrar</button></div></div></div>`;
         }
         function renderLobby(c) {
-            c.innerHTML = `<div class="h-full p-6 pt-20 flex flex-col animate-slide-up"><div class="text-center mb-8"><p class="text-slate-400 text-xs uppercase">Código da Sala</p><h2 class="text-5xl font-mono font-bold tracking-widest text-white select-all">${Game.state.room}</h2></div><div class="flex-1 space-y-2 overflow-y-auto"><h3 class="font-bold text-slate-400 mb-2">Jogadores (${Game.state.players.length})</h3>${Game.state.players.map((p, idx) => `<div class="bg-slate-800 p-4 rounded-xl flex items-center gap-3 border border-slate-700"><div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="user" class="w-4 h-4"></i></div><span class="font-bold flex-1">${p.name} ${idx === 0 ? '<span class="text-[10px] bg-gold-500 text-black px-1 rounded ml-2">HOST</span>' : ''}</span></div>`).join('')}</div>
-            <div class="mt-6 flex flex-col gap-3 shrink-0">
-                ${Game.state.host ? `<button onclick="Game.startMatch()" class="w-full bg-green-600 py-4 rounded-xl font-bold text-white shadow-lg">INICIAR JOGO</button>` : `<p class="text-center text-slate-500 animate-pulse">Aguardando Host...</p>`}
-                <button onclick="Game.leaveRoom()" class="w-full bg-red-900/40 text-red-400 py-3 rounded-xl font-bold border border-red-900/50">Sair da Sala</button>
-            </div>
-            </div>`;
+            c.innerHTML = `<div class="h-full p-6 pt-20 flex flex-col animate-slide-up"><div class="text-center mb-8"><p class="text-slate-400 text-xs uppercase">Código da Sala</p><h2 class="text-5xl font-mono font-bold tracking-widest text-white select-all">${Game.state.room}</h2></div><div class="flex-1 space-y-2 overflow-y-auto"><h3 class="font-bold text-slate-400 mb-2">Jogadores (${Game.state.players.length})</h3>${Game.state.players.map((p, idx) => `<div class="bg-slate-800 p-4 rounded-xl flex items-center gap-3 border border-slate-700"><div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="user" class="w-4 h-4"></i></div><span class="font-bold flex-1">${p.name} ${idx === 0 ? '<span class="text-[10px] bg-gold-500 text-black px-1 rounded ml-2">HOST</span>' : ''}</span></div>`).join('')}</div><div class="mt-6 flex flex-col gap-3 shrink-0">${Game.state.host ? `<button onclick="Game.startMatch()" class="w-full bg-green-600 py-4 rounded-xl font-bold text-white shadow-lg">INICIAR JOGO</button>` : `<p class="text-center text-slate-500 animate-pulse">Aguardando Host...</p>`}<button onclick="Game.leaveRoom()" class="w-full bg-red-900/40 text-red-400 py-3 rounded-xl font-bold border border-red-900/50">Sair da Sala</button></div></div>`;
         }
         function renderReveal(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
-            // Safety check for slow syncs
-            if(!me || !me.country) {
-                if(Game.state.phase === 'game') router.nav('setup'); // Recover
-                return;
-            }
+            if(!me || !me.country) return;
             c.innerHTML = `<div class="h-full flex flex-col justify-center items-center p-6 bg-black z-50"><div class="text-slate-500 uppercase tracking-widest mb-4 font-bold animate-pulse">Você vai governar</div><i data-lucide="flag" class="w-24 h-24 text-white mb-6 animate-zoom-in"></i><h1 class="text-5xl font-black text-gold-500 text-center uppercase animate-slide-up leading-tight">${me.country.name}</h1></div>`;
-            
-            // Auto-advance client logic handled by observation of phase change in Sync
         }
         function renderSetup(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             if(!me || !me.country) return;
-            
-            // Use assigned options
             const availableIds = me.govOptions && me.govOptions.length ? me.govOptions : GOV_STYLES.map(g=>g.id).slice(0,4);
             const options = availableIds.map(id => GOV_STYLES.find(g => g.id === id)).filter(Boolean);
-
             const statKeys = { eco: 'Economia', pop: 'Popularidade', stab: 'Estabilidade' };
             c.innerHTML = `<div class="h-full flex flex-col p-4 animate-fade-in bg-dark-900"><div class="text-center mb-4 shrink-0"><h2 class="text-xl font-black text-white uppercase tracking-widest">Escolha a Doutrina</h2><p class="text-slate-400 text-xs">Futuro de: <span class="text-gold-500 font-bold">${me.country.name}</span></p></div><div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 pb-8 overflow-y-auto">${options.map(s => {
                 const bonusHtml = Object.entries(s.initial).map(([k, v]) => {
@@ -970,349 +791,94 @@
         function renderCountry(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             if(!me || !me.country) return;
-
             const badgeHtml = me.badges.length ? me.badges.map(bid => {
                 const b = BADGES.find(x => x.id === bid);
                 return `<div onclick="openBadge('${bid}')" class="w-8 h-8 rounded-full ${b.bg} border border-slate-600 flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-transform"><i data-lucide="${b.icon}" class="w-4 h-4 text-white"></i></div>`;
             }).join('') : '<span class="text-xs text-slate-600">Sem insígnias conquistadas.</span>';
-
             const activeProjectsHtml = me.activeProjects && me.activeProjects.length > 0 
-                ? me.activeProjects.map(ap => {
-                    const yieldText = Object.entries(ap.yield || {}).map(([k,v]) => `+${v} ${k.toUpperCase()}`).join(', ');
-                    return `
-                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex justify-between items-center relative overflow-hidden">
-                        <div class="absolute bottom-0 left-0 h-1 bg-green-500 transition-all" style="width: ${(ap.remaining / ap.maxDuration) * 100}%"></div>
-                        <div>
-                            <div class="font-bold text-white text-sm">${ap.name}</div>
-                            <div class="text-[10px] text-green-400 font-bold">Rende: ${yieldText}</div>
-                        </div>
-                        <div class="text-right">
-                             <div class="text-[10px] text-slate-400 font-bold uppercase">Restam</div>
-                             <div class="font-bold text-white">${ap.remaining} Sem</div>
-                        </div>
-                    </div>`;
-                }).join('') 
+                ? me.activeProjects.map(ap => `<div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex justify-between items-center relative overflow-hidden"><div class="absolute bottom-0 left-0 h-1 bg-green-500 transition-all" style="width: ${(ap.remaining / ap.maxDuration) * 100}%"></div><div><div class="font-bold text-white text-sm">${ap.name}</div><div class="text-[10px] text-green-400 font-bold">Rende Recursos</div></div><div class="text-right"><div class="text-[10px] text-slate-400 font-bold uppercase">Restam</div><div class="font-bold text-white">${ap.remaining} Sem</div></div></div>`).join('') 
                 : `<p class="text-slate-500 text-sm italic text-center py-2">Nenhum projeto ativo.</p>`;
-
-            // Check for Crisis
             const isCrisis = me.stats.eco < 20 || me.stats.pop < 20 || me.stats.stab < 20;
-
-            c.innerHTML = `
-            <div class="p-6 space-y-6 animate-slide-up pb-32">
-                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-700 shadow-xl relative overflow-hidden">
-                    <div class="absolute top-0 right-0 p-4 opacity-10"><i data-lucide="flag" class="w-32 h-32"></i></div>
-                    <h2 class="text-3xl font-black text-white relative z-10">${me.country.name}</h2>
-                    <p class="text-gold-500 font-bold uppercase tracking-wider relative z-10 text-sm mb-4">${me.style ? me.style.name : 'Sem Doutrina'}</p>
-                    <div class="flex gap-2 relative z-10 mb-6 flex-wrap">${badgeHtml}</div>
-                    <div class="space-y-4 relative z-10">${renderMyStat('Economia', me.stats.eco, 'eco')}${renderMyStat('Popularidade', me.stats.pop, 'pop')}${renderMyStat('Estabilidade', me.stats.stab, 'stab')}</div>
-                </div>
-                ${isCrisis && !me.helpRequested ? 
-                    `<div class="bg-red-900/20 border border-red-600 rounded-2xl p-4 text-center animate-pulse">
-                        <p class="text-red-400 font-bold text-sm mb-2">⚠ ESTADO CRÍTICO DETECTADO</p>
-                        <p class="text-slate-300 text-xs mb-4">Sua nação está colapsando. Peça ajuda internacional.</p>
-                        <button onclick="Game.askHelp()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-xl w-full">PEDIR AJUDA IMEDIATA</button>
-                    </div>` 
-                : ''}
-                ${me.helpRequested ? 
-                    `<div class="bg-yellow-900/20 border border-yellow-600 rounded-2xl p-4 text-center">
-                        <p class="text-yellow-400 font-bold text-sm mb-2">📡 SINAL DE SOCORRO ATIVO</p>
-                        <p class="text-slate-300 text-xs">Aguardando resposta da comunidade internacional...</p>
-                    </div>` 
-                : ''}
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="font-bold text-slate-300">Projetos Nacionais</h3>
-                        <button onclick="openProjectModal()" class="text-xs bg-gold-600 text-black font-bold px-3 py-1.5 rounded hover:bg-gold-500 transition-colors shadow">+ Novo</button>
-                    </div>
-                    <div class="space-y-2">
-                        ${activeProjectsHtml}
-                    </div>
-                </div>
-            </div>`;
+            c.innerHTML = `<div class="p-6 space-y-6 animate-slide-up pb-32"><div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-700 shadow-xl relative overflow-hidden"><div class="absolute top-0 right-0 p-4 opacity-10"><i data-lucide="flag" class="w-32 h-32"></i></div><h2 class="text-3xl font-black text-white relative z-10">${me.country.name}</h2><p class="text-gold-500 font-bold uppercase tracking-wider relative z-10 text-sm mb-4">${me.style ? me.style.name : 'Sem Doutrina'}</p><div class="flex gap-2 relative z-10 mb-6 flex-wrap">${badgeHtml}</div><div class="space-y-4 relative z-10">${renderMyStat('Economia', me.stats.eco, 'eco')}${renderMyStat('Popularidade', me.stats.pop, 'pop')}${renderMyStat('Estabilidade', me.stats.stab, 'stab')}<div class="bg-purple-900/20 p-3 rounded-xl border border-purple-500/30 flex justify-between items-center"><span class="text-xs font-bold uppercase text-purple-400">Influência Diplomática</span><span class="text-xl font-black text-purple-500">${me.influence || 0}</span></div></div></div>${isCrisis && !me.helpRequested ? `<div class="bg-red-900/20 border border-red-600 rounded-2xl p-4 text-center animate-pulse"><p class="text-red-400 font-bold text-sm mb-2">⚠ ESTADO CRÍTICO DETECTADO</p><p class="text-slate-300 text-xs mb-4">Sua nação está colapsando. Peça ajuda internacional.</p><button onclick="Game.askHelp()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-xl w-full">PEDIR AJUDA IMEDIATA</button></div>` : ''}${me.helpRequested ? `<div class="bg-yellow-900/20 border border-yellow-600 rounded-2xl p-4 text-center"><p class="text-yellow-400 font-bold text-sm mb-2">📡 SINAL DE SOCORRO ATIVO</p><p class="text-slate-300 text-xs">Aguardando resposta da comunidade internacional...</p></div>` : ''}<div><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-slate-300">Projetos Nacionais</h3><button onclick="openProjectModal()" class="text-xs bg-gold-600 text-black font-bold px-3 py-1.5 rounded hover:bg-gold-500 transition-colors shadow">+ Novo</button></div><div class="space-y-2">${activeProjectsHtml}</div></div></div>`;
         }
 
         function renderDecisions(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             const d = me.decisionQueue[0];
             const remaining = me.decisionQueue.length;
-
             let decisionHtml = '';
-            if (me.ready) {
-                decisionHtml = `
-                    <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center mb-8">
-                        <div class="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                            <i data-lucide="hourglass" class="w-8 h-8 text-gold-500"></i>
-                        </div>
-                        <h3 class="font-bold text-white">Aguardando...</h3>
-                        <p class="text-slate-400 text-sm mt-2">Esperando outros presidentes.</p>
-                    </div>`;
-            } else if (!d && !me.ready) {
-                // All decisions done, show "End Semester" button
-                 decisionHtml = `
-                    <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center mb-8">
-                        <h3 class="font-bold text-white text-xl mb-4">Mandato Concluído</h3>
-                        <p class="text-slate-400 text-sm mb-6">Todas as decisões deste semestre foram tomadas. Revise seus investimentos e finalize.</p>
-                        <button onclick="Game.confirmReady()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition hover:scale-105">
-                            Encerrar Semestre
-                        </button>
-                    </div>`;
-            } else {
+            if (me.ready) decisionHtml = `<div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center mb-8"><div class="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse"><i data-lucide="hourglass" class="w-8 h-8 text-gold-500"></i></div><h3 class="font-bold text-white">Aguardando...</h3><p class="text-slate-400 text-sm mt-2">Esperando outros presidentes.</p></div>`;
+            else if (!d) decisionHtml = `<div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center mb-8"><h3 class="font-bold text-white text-xl mb-4">Mandato Concluído</h3><p class="text-slate-400 text-sm mb-6">Todas as decisões foram tomadas.</p><button onclick="Game.confirmReady()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg">Encerrar Semestre</button></div>`;
+            else {
                 const isEpic = d.isEpic;
-                const isConsequence = d.isConsequence || d.tag === "Consequência";
-                
-                // Styling Logic
-                let mainBg = 'bg-slate-800 border-slate-700';
-                let tagColor = isConsequence ? 'bg-red-600' : 'bg-gold-500';
-                let tagText = isConsequence ? '⚠️ CONSEQUÊNCIA' : `DECISÃO ${me.maxDecisions - remaining + 1}/${me.maxDecisions}`;
-                let textColor = 'text-white';
-                let btnYesClass = 'bg-slate-900 border-slate-700 hover:border-green-500';
-                let btnNoClass = 'bg-slate-900 border-slate-700 hover:border-red-500';
-
-                // Epic Styling Override
-                if (isEpic) {
-                    mainBg = 'bg-gradient-to-r from-purple-600 to-pink-600 border-purple-400';
-                    tagColor = 'bg-white/20 backdrop-blur';
-                    tagText = '✨ EVENTO ÉPICO';
-                    textColor = 'text-yellow-300';
-                    btnYesClass = 'bg-purple-900/60 border-purple-400 hover:bg-purple-800';
-                    btnNoClass = 'bg-pink-900/60 border-pink-400 hover:bg-pink-800';
-                } else if (isConsequence) {
-                    mainBg = 'bg-slate-800 border-red-500';
-                }
-
+                const isConsequence = d.isConsequence;
                 const renderBtnEff = (eff) => Object.entries(eff).map(([k,v]) => {
-                     // Check gov modifiers for display
                      const val = Game.calcEff(v, k, me, isEpic);
                      const badgeBg = val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400';
                      return `<span class="text-[10px] font-black px-1.5 py-0.5 rounded ${badgeBg} ml-1 whitespace-nowrap">${k.toUpperCase()} ${val>0?'+':''}${val}</span>`;
                 }).join('');
-
-                decisionHtml = `
-                    <div class="${mainBg} rounded-2xl p-6 shadow-2xl relative border flex flex-col mb-8 animate-slide-up overflow-hidden">
-                         ${isEpic ? '<div class="absolute top-0 right-0 p-6 opacity-20"><i data-lucide="sparkles" class="w-32 h-32 text-white"></i></div>' : ''}
-                         <div class="absolute -top-3 left-6 ${tagColor} text-white text-[10px] font-black px-3 py-1 rounded shadow-lg uppercase tracking-widest relative z-10">
-                            ${isEpic ? '<i data-lucide="sparkles" class="w-3 h-3 inline mr-1"></i>' : ''}
-                            ${tagText}
-                         </div>
-                        <p class="text-lg font-bold ${textColor} mb-6 mt-4 leading-snug relative z-10">${d.text}</p>
-                        <div class="space-y-3 relative z-10">
-                            <button onclick="Game.resolveDecision('yes')" class="w-full ${btnYesClass} border p-4 rounded-xl text-left group transition-all">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="text-green-400 font-black uppercase text-xs tracking-wider">${d.yes.label}</span>
-                                    <div class="flex flex-wrap justify-end gap-1">${renderBtnEff(d.yes.eff)}</div>
-                                </div>
-                                <p class="text-slate-400 text-xs">${d.yes.desc}</p>
-                            </button>
-                            <button onclick="Game.resolveDecision('no')" class="w-full ${btnNoClass} border p-4 rounded-xl text-left group transition-all">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="text-red-400 font-black uppercase text-xs tracking-wider">${d.no.label}</span>
-                                    <div class="flex flex-wrap justify-end gap-1">${renderBtnEff(d.no.eff)}</div>
-                                </div>
-                                <p class="text-slate-400 text-xs">${d.no.desc}</p>
-                            </button>
-                        </div>
-                    </div>`;
+                decisionHtml = `<div class="${isEpic?'bg-gradient-to-r from-purple-600 to-pink-600 border-purple-400':'bg-slate-800 border-slate-700'} rounded-2xl p-6 shadow-2xl relative border flex flex-col mb-8 animate-slide-up overflow-hidden"><div class="absolute -top-3 left-6 ${isConsequence?'bg-red-600':'bg-gold-500'} text-white text-[10px] font-black px-3 py-1 rounded shadow-lg uppercase tracking-widest relative z-10">${isEpic?'✨ EVENTO ÉPICO':(isConsequence?'⚠️ CONSEQUÊNCIA':'DECISÃO')}</div><p class="text-lg font-bold text-white mb-6 mt-4 leading-snug relative z-10">${d.text}</p><div class="space-y-3 relative z-10"><button onclick="Game.resolveDecision('yes')" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-left hover:border-green-500 transition-all"><div class="flex justify-between items-center mb-1"><span class="text-green-400 font-black uppercase text-xs tracking-wider">${d.yes.label}</span><div class="flex flex-wrap justify-end gap-1">${renderBtnEff(d.yes.eff)}</div></div><p class="text-slate-400 text-xs">${d.yes.desc}</p></button><button onclick="Game.resolveDecision('no')" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-left hover:border-red-500 transition-all"><div class="flex justify-between items-center mb-1"><span class="text-red-400 font-black uppercase text-xs tracking-wider">${d.no.label}</span><div class="flex flex-wrap justify-end gap-1">${renderBtnEff(d.no.eff)}</div></div><p class="text-slate-400 text-xs">${d.no.desc}</p></button></div></div>`;
             }
-
             const investmentsHtml = me.availableInvestments.map(inv => {
                 const canAfford = Object.entries(inv.cost || {}).every(([k,v]) => me.stats[k] >= v);
-                const limitReached = me.investmentCount >= 1;
-                const active = canAfford && !limitReached;
-
-                const costHtml = Object.entries(inv.cost || {}).map(([k,v]) => `<span class="text-[10px] font-bold text-red-400">-${v} ${k.toUpperCase()}</span>`).join(' ');
-                const gainHtml = Object.entries(inv.gain || {}).map(([k,v]) => `<span class="text-[10px] font-bold text-green-400">+${v} ${k.toUpperCase()}</span>`).join(' ');
-
-                return `
-                <button onclick="${active ? `Game.buyInvestment('${inv.id}')` : ''}" class="bg-slate-800 border ${active ? 'border-slate-700 hover:border-gold-500' : 'border-slate-800 opacity-40 cursor-not-allowed'} p-4 rounded-xl text-left transition-all relative">
-                    ${!limitReached ? '' : '<div class="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center text-xs font-bold uppercase text-white">Limite atingido</div>'}
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="font-bold text-white text-sm">${inv.name}</span>
-                        <i data-lucide="${active ? 'plus-circle' : 'lock'}" class="w-4 h-4 ${active ? 'text-gold-500' : 'text-slate-500'}"></i>
-                    </div>
-                    <p class="text-xs text-slate-400 mb-3">${inv.desc}</p>
-                    <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded-lg">
-                        <div class="flex gap-2">${costHtml}</div>
-                        <i data-lucide="arrow-right" class="w-3 h-3 text-slate-600"></i>
-                        <div class="flex gap-2">${gainHtml}</div>
-                    </div>
-                </button>`;
+                const active = canAfford && me.investmentCount < 1;
+                return `<button onclick="${active ? `Game.buyInvestment('${inv.id}')` : ''}" class="bg-slate-800 border ${active ? 'border-slate-700 hover:border-gold-500' : 'border-slate-800 opacity-40 cursor-not-allowed'} p-4 rounded-xl text-left transition-all relative"><div class="flex justify-between items-start mb-2"><span class="font-bold text-white text-sm">${inv.name}</span><i data-lucide="${active ? 'plus-circle' : 'lock'}" class="w-4 h-4 ${active ? 'text-gold-500' : 'text-slate-500'}"></i></div><p class="text-xs text-slate-400 mb-3">${inv.desc}</p></button>`;
             }).join('');
-
-            c.innerHTML = `
-                <div class="p-4 md:p-6 animate-slide-up pb-32">
-                    <h2 class="text-2xl font-bold text-white mb-6">Sala de Decisões</h2>
-                    ${decisionHtml}
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="briefcase" class="w-5 h-5 text-gold-500"></i>
-                            <h3 class="font-bold text-slate-300">Ações Governamentais</h3>
-                        </div>
-                        <span class="text-xs text-slate-500 uppercase font-bold tracking-wider">${me.investmentCount}/1</span>
-                    </div>
-                    <div class="grid grid-cols-1 gap-3">
-                        ${investmentsHtml}
-                    </div>
-                </div>`;
+            c.innerHTML = `<div class="p-4 md:p-6 animate-slide-up pb-32"><h2 class="text-2xl font-bold text-white mb-6">Sala de Decisões</h2>${decisionHtml}<div class="flex items-center justify-between mb-4"><div class="flex items-center gap-2"><i data-lucide="briefcase" class="w-5 h-5 text-gold-500"></i><h3 class="font-bold text-slate-300">Ações Governamentais</h3></div><span class="text-xs text-slate-500 uppercase font-bold tracking-wider">${me.investmentCount}/1</span></div><div class="grid grid-cols-1 gap-3">${investmentsHtml}</div></div>`;
         }
 
         function renderRelations(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             const others = Game.state.players.filter(p => p.id !== Game.state.me);
-
-            const requestsHtml = me.requests.map(r => `
-                <div class="bg-slate-700 p-4 rounded-xl mb-4 border-l-4 border-gold-500 animate-slide-up">
-                    <p class="text-sm font-bold text-white mb-1"><span class="text-gold-500">${r.fromName}</span> (${r.fromCountry})</p>
-                    <p class="text-xs text-slate-300 mb-3">Enviou um convite de <span class="uppercase font-bold">${r.type === 'alliance' ? 'Aliança' : 'Parceria'}</span>.</p>
-                    <div class="flex gap-2">
-                        <button onclick="Game.respondRequest(${r.id}, 'yes')" class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded text-xs font-bold">Aceitar</button>
-                        <button onclick="Game.respondRequest(${r.id}, 'no')" class="flex-1 bg-red-600 hover:bg-red-500 py-2 rounded text-xs font-bold">Recusar</button>
-                    </div>
-                </div>
-            `).join('');
-
-            const myProfileHtml = `
-            <button onclick="openDetails('${me.country.id}')" class="w-full bg-slate-800/50 p-4 rounded-xl flex items-center justify-between border border-dashed border-slate-700 hover:border-slate-500 transition-colors mb-6">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
-                        <i data-lucide="user" class="w-5 h-5 text-gold-500"></i>
-                    </div>
-                    <div class="text-left">
-                        <p class="font-bold text-white">Você (${me.country.name})</p>
-                        <p class="text-xs text-slate-400">Ver Perfil Público</p>
-                    </div>
-                </div>
-            </button>`;
-
+            const requestsHtml = me.requests.map(r => `<div class="bg-slate-700 p-4 rounded-xl mb-4 border-l-4 border-gold-500 animate-slide-up"><p class="text-sm font-bold text-white mb-1"><span class="text-gold-500">${r.fromName}</span> (${r.fromCountry})</p><p class="text-xs text-slate-300 mb-3">Enviou um convite de <span class="uppercase font-bold">${r.type}</span>.</p><div class="flex gap-2"><button onclick="Game.respondRequest(${r.id}, 'yes')" class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded text-xs font-bold">Aceitar</button><button onclick="Game.respondRequest(${r.id}, 'no')" class="flex-1 bg-red-600 hover:bg-red-500 py-2 rounded text-xs font-bold">Recusar</button></div></div>`).join('');
             const listHtml = others.map(p => {
-                const key = [me.id, p.id].sort().join('_');
-                const chatHistory = Game.state.chats[key] || [];
-                const lastMsg = chatHistory[chatHistory.length - 1];
                 const isCrisis = p.stats.eco < 20 || p.stats.pop < 20 || p.stats.stab < 20;
-
-                return `
-                <button onclick="openRelationModal('${p.id}')" class="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between border ${isCrisis ? 'border-red-500 animate-pulse' : 'border-slate-700 hover:border-gold-500'} transition-colors group relative">
-                    ${isCrisis ? '<div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>' : ''}
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600 group-hover:border-gold-500 transition-colors">
-                            <i data-lucide="flag" class="w-5 h-5 text-white"></i>
-                        </div>
-                        <div class="text-left">
-                            <p class="font-bold text-white">${p.country.name}</p>
-                            <p class="text-xs ${isCrisis ? 'text-red-400 font-bold' : 'text-slate-400'}">${p.name} ${isCrisis ? '⚠ SOS' : ''}</p>
-                        </div>
-                    </div>
-                    ${lastMsg ? '<i data-lucide="message-square" class="w-4 h-4 text-gold-500"></i>' : '<i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>'}
-                </button>`;
+                return `<button onclick="openRelationModal('${p.id}')" class="w-full bg-slate-800 p-4 rounded-xl flex items-center justify-between border ${isCrisis ? 'border-red-500 animate-pulse' : 'border-slate-700 hover:border-gold-500'} transition-colors group relative"><div class="flex items-center gap-4"><div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600"><i data-lucide="flag" class="w-5 h-5 text-white"></i></div><div class="text-left"><p class="font-bold text-white">${p.country.name}</p><p class="text-xs text-slate-400">${p.name} <span class="text-purple-400 font-bold ml-1">${p.influence || 0} INF</span></p></div></div><i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i></button>`;
             }).join('');
-
-            c.innerHTML = `
-            <div class="p-6 animate-slide-up pb-32">
-                <h2 class="text-2xl font-bold text-white mb-6">Relações Exteriores</h2>
-                ${requestsHtml}
-                ${myProfileHtml}
-                <div class="space-y-3 mt-4">
-                    ${listHtml}
-                </div>
-            </div>`;
+            c.innerHTML = `<div class="p-6 animate-slide-up pb-32"><h2 class="text-2xl font-bold text-white mb-6">Relações Exteriores</h2>${requestsHtml}<div class="space-y-3 mt-4">${listHtml}</div></div>`;
         }
 
         function renderNews(c) {
             const news = Game.state.news;
             const tab = router.newsTab;
-
             let contentHtml = '';
             if(tab === 'main') {
-                 if (news.main) {
-                    contentHtml = `
-                    <div onclick="openNewsDetail('main')" class="cursor-pointer group bg-slate-800/50 border-l-4 border-gold-500 p-6 hover:bg-slate-800 transition-colors rounded-r-xl">
-                        <div class="flex justify-between items-start mb-2">
-                             <span class="text-gold-500 text-[10px] font-black uppercase tracking-widest">Manchete Oficial</span>
-                             <span class="text-slate-500 text-[10px] uppercase font-bold">${news.main.date}</span>
-                        </div>
-                        <h2 class="text-xl md:text-2xl font-bold text-white leading-tight mb-4 group-hover:text-gold-400 transition-colors">${news.main.title}</h2>
-                        <p class="text-slate-400 text-sm leading-relaxed">${news.main.desc}</p>
-                    </div>`;
-                } else { contentHtml = `<div class="p-6 text-center text-slate-500">Sem manchetes.</div>`; }
+                 contentHtml = news.main ? `<div class="bg-slate-800/50 border-l-4 border-gold-500 p-6 rounded-r-xl"><h2 class="text-xl font-bold text-white leading-tight mb-4">${news.main.title}</h2><p class="text-slate-400 text-sm leading-relaxed">${news.main.desc}</p></div>` : `<div class="p-6 text-center text-slate-500">Sem manchetes.</div>`;
             } else {
-                 if (news.general && news.general.length > 0) {
-                    contentHtml = `<div class="space-y-2">
-                        ${news.general.map((n, idx) => `
-                        <div onclick="openNewsDetail(${idx})" class="news-card hover:bg-slate-800 transition-colors cursor-pointer group border-slate-700/50">
-                             <div class="absolute top-0 bottom-0 left-0 w-1 ${n.type === 'good' ? 'bg-green-500' : n.type === 'bad' ? 'bg-red-500' : 'bg-slate-500'}"></div>
-                             <div class="mb-1">
-                                <span class="news-tag text-slate-400">SEM ${n.round || Game.state.round}</span>
-                             </div>
-                             <p class="text-sm font-medium text-white mb-1 group-hover:text-gold-400 transition-colors">${n.text} ${n.detail ? `<span class="text-gold-500 font-bold text-xs">${n.detail}</span>` : ''}</p>
-                        </div>`).join('')}
-                    </div>`;
-                } else { contentHtml = `<div class="p-6 text-center text-slate-500">Nada a relatar.</div>`; }
+                 contentHtml = news.general && news.general.length > 0 ? `<div class="space-y-2">${news.general.map((n, idx) => `<div class="news-card border-slate-700/50"><div class="mb-1"><span class="news-tag text-slate-400">SEM ${n.round || Game.state.round}</span></div><p class="text-sm font-medium text-white mb-1">${n.text}</p></div>`).join('')}</div>` : `<div class="p-6 text-center text-slate-500">Nada a relatar.</div>`;
             }
-
-            c.innerHTML = `
-                <div class="p-4 md:p-6 animate-slide-up pb-32">
-                    <h1 class="text-3xl font-black text-white mb-6">Central de Notícias</h1>
-                    <div class="flex bg-slate-900/50 rounded-lg p-1 mb-6 border border-slate-700/50">
-                        <button onclick="router.newsTab='main'; router.render()" class="flex-1 py-2 text-sm font-bold rounded-md transition-all ${tab==='main'?'bg-slate-700 text-white shadow':'text-slate-400 hover:text-white'}">Principais</button>
-                        <button onclick="router.newsTab='general'; router.render()" class="flex-1 py-2 text-sm font-bold rounded-md transition-all ${tab==='general'?'bg-slate-700 text-white shadow':'text-slate-400 hover:text-white'}">Geral</button>
-                    </div>
-                    ${contentHtml}
-                </div>`;
+            c.innerHTML = `<div class="p-4 md:p-6 animate-slide-up pb-32"><h1 class="text-3xl font-black text-white mb-6">Central de Notícias</h1><div class="flex bg-slate-900/50 rounded-lg p-1 mb-6 border border-slate-700/50"><button onclick="router.newsTab='main'; router.render()" class="flex-1 py-2 text-sm font-bold rounded-md transition-all ${tab==='main'?'bg-slate-700 text-white shadow':'text-slate-400 hover:text-white'}">Principais</button><button onclick="router.newsTab='general'; router.render()" class="flex-1 py-2 text-sm font-bold rounded-md transition-all ${tab==='general'?'bg-slate-700 text-white shadow':'text-slate-400 hover:text-white'}">Geral</button></div>${contentHtml}</div>`;
         }
         
         function renderMyStat(l, v, t) { const m = getStat(t, v); return `<div><div class="flex justify-between text-xs font-bold uppercase mb-1"><span class="text-slate-400">${l}</span><span class="${m.c}">${v}%</span></div><div class="h-2 bg-slate-950 rounded-full overflow-hidden"><div class="h-full bg-current ${m.c} transition-all duration-500" style="width:${v}%"></div></div></div>`; }
+        
         function renderMap(c) { 
             const meId = Game.state.me; 
             const svg = COUNTRIES.map(y => { 
                 const o = Game.state.players.find(p => p.country && p.country.id === y.id); 
                 let f='#334155', s='#475569', z=1; 
-                let badgeIcon = '';
                 let crisisClass = '';
-
                 if(o) { 
                     if(o.id === meId) { f='#1d4ed8'; s='#60a5fa'; z=10; } 
                     else { f='#ca8a04'; s='#facc15'; z=5; } 
-                    
-                    if(o.stats.eco < 20 || o.stats.pop < 20 || o.stats.stab < 20) {
-                         crisisClass = 'crisis-glow';
-                         s = '#ef4444';
-                    }
-
-                    // Render Badge on Map
-                    if (o.badges.length > 0) {
-                        const lastBadge = BADGES.find(b => b.id === o.badges[o.badges.length-1]);
-                        if(lastBadge) {
-                            badgeIcon = `
-                                <g transform="translate(${y.center.x + 10}, ${y.center.y - 10})" onclick="openBadge('${lastBadge.id}')" class="cursor-pointer hover:scale-125 transition-transform">
-                                    <circle r="8" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
-                                    <text x="0" y="3" text-anchor="middle" font-size="8" fill="white">★</text>
-                                </g>
-                            `;
-                        }
-                    }
+                    if(o.helpRequested) { crisisClass = 'crisis-glow'; s = '#ef4444'; }
                 } 
-                return `<g><path d="${y.path}" fill="${f}" stroke="${s}" class="country-path ${crisisClass}" onclick="openDetails('${y.id}')" style="z-index:${z}" />${badgeIcon}</g>`; 
+                return `<path d="${y.path}" fill="${f}" stroke="${s}" class="country-path ${crisisClass}" onclick="openDetails('${y.id}')" style="z-index:${z}" />`; 
             }).join(''); 
             c.innerHTML = `<div class="h-full flex items-center justify-center bg-dark-900 relative overflow-hidden"><h2 class="absolute top-6 left-6 text-4xl font-black text-slate-800 z-0 select-none">AMÉRICA<br>DO SUL</h2><svg viewBox="0 0 350 400" class="w-full max-w-lg drop-shadow-2xl z-10" style="max-height: 80vh;">${svg}</svg></div>`; 
         }
 
-        // --- GLOBAL UTILITIES ---
         window.openNewsDetail = function(id) { 
             const item = id === 'main' ? Game.state.news.main : Game.state.news.general[id];
             if(!item) return;
-            document.getElementById('modal-content').innerHTML = `<h2 class="text-xl font-bold text-white mb-4">${item.title || item.text}</h2><p class="text-slate-400 text-sm mb-6">${item.desc || "Detalhes não disponíveis."}</p><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>`;
+            document.getElementById('modal-content').innerHTML = `<h2 class="text-xl font-bold text-white mb-4">${item.title || item.text}</h2><p class="text-slate-400 text-sm mb-6">${item.desc || ""}</p><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>`;
             document.getElementById('modal-overlay').classList.remove('hidden');
         };
         
         window.openBadge = function(bid) {
             const b = BADGES.find(x => x.id === bid);
             if(!b) return;
-            document.getElementById('modal-content').innerHTML = `
-                <div class="text-center">
-                    <div class="w-16 h-16 rounded-full ${b.bg} flex items-center justify-center mx-auto mb-4 border-2 border-white"><i data-lucide="${b.icon}" class="w-8 h-8 text-white"></i></div>
-                    <h2 class="text-xl font-bold ${b.color} mb-2">${b.name}</h2>
-                    <p class="text-slate-300 text-sm mb-6">${b.desc}</p>
-                </div>
-                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>`;
+            document.getElementById('modal-content').innerHTML = `<div class="text-center"><div class="w-16 h-16 rounded-full ${b.bg} flex items-center justify-center mx-auto mb-4 border-2 border-white"><i data-lucide="${b.icon}" class="w-8 h-8 text-white"></i></div><h2 class="text-xl font-bold ${b.color} mb-2">${b.name}</h2><p class="text-slate-300 text-sm mb-6">${b.desc}</p></div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>`;
             document.getElementById('modal-overlay').classList.remove('hidden');
             lucide.createIcons();
         }
@@ -1321,83 +887,28 @@
             const me = Game.state.players.find(p => p.id === Game.state.me);
             const html = PROJECTS.map(p => {
                 const owned = me.projects.includes(p.id);
-                const canAfford = me.stats.eco >= (p.cost.eco||0) && me.stats.pop >= (p.cost.pop||0);
-                const yieldText = Object.entries(p.yield).map(([k,v]) => `+${v} ${k.toUpperCase()}`).join(', ');
-
-                return `
-                <button onclick="${!owned && canAfford ? `Game.buyProject('${p.id}')` : ''}" class="w-full bg-slate-700 p-3 rounded-xl mb-2 flex justify-between items-center ${owned ? 'opacity-50' : canAfford ? 'hover:bg-slate-600' : 'opacity-40'}">
-                    <div class="text-left">
-                        <div class="font-bold text-white text-sm">${p.name} ${owned ? '(Ativo)' : ''}</div>
-                        <div class="text-[10px] text-slate-400">Duração: ${p.duration} Semestres</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-[10px] text-red-400 font-bold">-${p.cost.eco} ECO</div>
-                        <div class="text-[10px] text-green-400 font-bold">Rende: ${yieldText}</div>
-                    </div>
-                </button>`;
+                const canAfford = me.stats.eco >= (p.cost.eco||0);
+                return `<button onclick="${!owned && canAfford ? `Game.buyProject('${p.id}')` : ''}" class="w-full bg-slate-700 p-3 rounded-xl mb-2 flex justify-between items-center ${owned ? 'opacity-50' : canAfford ? 'hover:bg-slate-600' : 'opacity-40'}"><div class="text-left"><div class="font-bold text-white text-sm">${p.name}</div><div class="text-[10px] text-slate-400">Duração: ${p.duration} Sem</div></div><div class="text-right"><div class="text-[10px] text-red-400 font-bold">-${p.cost.eco} ECO</div></div></button>`;
             }).join('');
-            document.getElementById('modal-content').innerHTML = `<h2 class="text-xl font-bold text-white mb-4">Projetos Nacionais</h2><p class="text-xs text-slate-400 mb-4">Investimentos de longo prazo que rendem recursos todo semestre.</p>${html}<button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Cancelar</button>`;
+            document.getElementById('modal-content').innerHTML = `<h2 class="text-xl font-bold text-white mb-4">Projetos Nacionais</h2>${html}<button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Cancelar</button>`;
             document.getElementById('modal-overlay').classList.remove('hidden');
         };
 
         window.openRelationModal = function(targetId) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             const target = Game.state.players.find(p => p.id === targetId);
-            const key = [me.id, target.id].sort().join('_');
-            const chatHistory = Game.state.chats[key] || [];
-
-            const chatHtml = chatHistory.map(msg => 
-                `<div class="mb-2 ${msg.sender === me.id ? 'text-right' : 'text-left'}">
-                    <span class="inline-block px-2 py-1 rounded text-xs ${msg.sender === me.id ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}">${msg.text}</span>
-                </div>`
-            ).join('');
-
-            // Check if target needs help
             const isCrisis = target.helpRequested;
-            let actionButtons = '';
-            
-            if (isCrisis) {
-                 actionButtons = `
-                    <div class="col-span-2 bg-red-900/40 p-3 rounded-xl border border-red-500 mb-2">
-                        <p class="text-red-400 font-bold text-xs mb-2 text-center uppercase">Pedido de Ajuda Ativo</p>
-                        <div class="grid grid-cols-2 gap-2">
-                             <button onclick="Game.sendHelp('${targetId}', 'partial')" class="bg-blue-600 p-2 rounded text-xs font-bold hover:bg-blue-500 flex flex-col items-center justify-center">
-                                <span>Humanitária</span>
-                                <span class="text-[9px] text-blue-200">-10 Eco / +5 Inf</span>
-                             </button>
-                             <button onclick="Game.sendHelp('${targetId}', 'total')" class="bg-gold-600 text-black p-2 rounded text-xs font-bold hover:bg-gold-500 flex flex-col items-center justify-center">
-                                <span>Financeira</span>
-                                <span class="text-[9px] text-black/70">-20 Eco / +15 Inf</span>
-                             </button>
-                        </div>
-                    </div>`;
-            } else {
-                 actionButtons = `
-                    <button onclick="Game.sendInvite('alliance', '${targetId}')" class="bg-indigo-600 p-2 rounded text-xs font-bold hover:bg-indigo-500">Aliança</button>
-                    <button onclick="Game.sendInvite('partnership', '${targetId}')" class="bg-teal-600 p-2 rounded text-xs font-bold hover:bg-teal-500">Parceria</button>
-                    <button onclick="Game.sendSpy('${targetId}')" class="bg-red-900/50 text-red-400 border border-red-900 p-2 rounded text-xs font-bold hover:bg-red-900/80 col-span-2">Espião de Fake News (-20 ECO)</button>
-                 `;
-            }
-
-            document.getElementById('modal-content').innerHTML = `
-                <div class="text-center mb-6">
-                    <h2 class="text-xl font-bold text-white">${target.country.name}</h2>
-                    <p class="text-xs text-gold-500 font-bold uppercase">${target.name}</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    ${actionButtons}
-                </div>
-                <div class="bg-slate-900 rounded-xl p-3 h-40 overflow-y-auto mb-2 border border-slate-700 flex flex-col-reverse">
-                    <div id="chat-feed">${chatHtml}</div>
-                </div>
-                <div class="flex gap-2">
-                    <input id="chat-input" class="flex-1 bg-slate-800 rounded px-3 text-sm outline-none border border-slate-700 focus:border-gold-500" placeholder="Mensagem...">
-                    <button onclick="Game.sendChat('${targetId}', document.getElementById('chat-input').value)" class="bg-gold-500 text-black p-2 rounded"><i data-lucide="send" class="w-4 h-4"></i></button>
-                </div>
-                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Fechar</button>
-            `;
+            let actionButtons = isCrisis ? `<div class="col-span-2 bg-red-900/40 p-3 rounded-xl border border-red-500 mb-2"><p class="text-red-400 font-bold text-xs mb-2 text-center uppercase">Pedido de Ajuda Ativo</p><div class="grid grid-cols-2 gap-2"><button onclick="Game.sendHelp('${targetId}', 'partial')" class="bg-blue-600 p-2 rounded text-xs font-bold flex flex-col items-center justify-center"><span>Humanitária</span></button><button onclick="Game.sendHelp('${targetId}', 'total')" class="bg-gold-600 text-black p-2 rounded text-xs font-bold flex flex-col items-center justify-center"><span>Financeira</span></button></div></div>` : `<button onclick="Game.sendInvite('Aliança', '${targetId}')" class="bg-indigo-600 p-2 rounded text-xs font-bold">Aliança</button><button onclick="Game.sendInvite('Parceria', '${targetId}')" class="bg-teal-600 p-2 rounded text-xs font-bold">Parceria</button>`;
+            document.getElementById('modal-content').innerHTML = `<div class="text-center mb-6"><h2 class="text-xl font-bold text-white">${target.country.name}</h2><p class="text-xs text-gold-500 font-bold uppercase">${target.name}</p></div><div class="grid grid-cols-2 gap-2 mb-4">${actionButtons}</div><div class="flex gap-2"><input id="chat-input" class="flex-1 bg-slate-800 rounded px-3 text-sm outline-none border border-slate-700 focus:border-gold-500" placeholder="Mensagem..."><button onclick="Game.sendChat('${targetId}', document.getElementById('chat-input').value)" class="bg-gold-500 text-black p-2 rounded"><i data-lucide="send" class="w-4 h-4"></i></button></div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Fechar</button>`;
             document.getElementById('modal-overlay').classList.remove('hidden');
             lucide.createIcons();
+        };
+
+        window.openDetails = function(cid) {
+            const p = Game.state.players.find(pl => pl.country && pl.country.id === cid);
+            if(!p) return;
+            document.getElementById('modal-content').innerHTML = `<div class="text-center"><h2 class="text-2xl font-black text-white">${p.country.name}</h2><p class="text-gold-500 font-bold mb-4 uppercase">${p.name}</p><div class="space-y-2 text-left bg-slate-900 p-4 rounded-xl"><p class="text-xs">Doutrina: <span class="text-white">${p.style?p.style.name:'Desconhecida'}</span></p><p class="text-xs">Influência: <span class="text-purple-400 font-bold">${p.influence||0}</span></p></div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-6 w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button></div>`;
+            document.getElementById('modal-overlay').classList.remove('hidden');
         };
 
         window.showToast = function(msg, type='info') {
