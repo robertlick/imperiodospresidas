@@ -344,6 +344,11 @@
 
             joinRoom: (name, code) => {
                 if(!name || !code) return showToast("Preencha tudo!", "error");
+                
+                // Visual feedback that we are trying to join
+                const btn = document.querySelector('button.flex-1.bg-blue-600');
+                if(btn) { btn.innerText = 'Entrando...'; btn.disabled = true; }
+                
                 localStorage.setItem('pname', name);
                 Game.state.me = 'client-'+Date.now();
                 Game.peer = new Peer();
@@ -359,7 +364,10 @@
                         setTimeout(() => location.reload(), 2000);
                     });
                 });
-                Game.peer.on('error', err => showToast("Erro: Sala não encontrada", 'error'));
+                Game.peer.on('error', err => {
+                    showToast("Erro: Sala não encontrada", 'error');
+                    if(btn) { btn.innerText = 'Entrar'; btn.disabled = false; }
+                });
             },
 
             leaveRoom: () => {
@@ -398,13 +406,30 @@
                 }
                 if(d.t === 'SYNC') {
                     Game.state = d.s;
-                    Game.updateHUD(); // Always update HUD on sync
-                    const me = Game.state.players.find(p => p.id === Game.state.me);
+                    Game.updateHUD();
                     
-                    if (Game.state.phase === 'reveal' && router.cur !== 'reveal') router.nav('reveal');
-                    else if (Game.state.phase === 'game' && ['lobby','reveal','home'].includes(router.cur)) {
-                        router.nav(me && me.style ? 'country' : 'setup');
+                    const me = Game.state.players.find(p => p.id === Game.state.me);
+
+                    // --- ROUTING LOGIC FIX: PREVENT FLASHING & LOOPS ---
+                    // Only navigate if we are NOT in the target view
+                    
+                    if (Game.state.phase === 'reveal') {
+                        if (router.cur !== 'reveal') router.nav('reveal');
+                    } 
+                    else if (Game.state.phase === 'game') {
+                        // If we are still in 'lobby', 'reveal' or 'home', we MUST move to game views
+                        if (['lobby', 'reveal', 'home'].includes(router.cur)) {
+                            if (me) {
+                                router.nav(me.style ? 'country' : 'setup');
+                            }
+                        }
                     }
+                    else if (Game.state.phase === 'lobby' && router.cur !== 'lobby' && !Game.state.host) {
+                        // Just in case we sync back to lobby
+                        router.nav('lobby');
+                    }
+                    
+                    // --- END ROUTING FIX ---
                     
                     if(me) {
                         const relBadge = document.getElementById('badge-relations');
@@ -415,6 +440,7 @@
                         if(decBadge) decBadge.classList.toggle('hidden', me.ready);
                     }
 
+                    // Only re-render purely visual updates if we are already in the correct view
                     if(['country', 'map', 'decisions', 'relations', 'news', 'lobby'].includes(router.cur)) {
                         Game.updateHUD();
                         router.render();
@@ -769,8 +795,17 @@
                 Game.state.round = 1;
                 Game.sync(); // Broadcast finalized setup to everyone
                 
-                // Host handles the timer for everyone (via sync updates if needed, or just assumes clients run parallel)
-                // Better: Clients watch phase change.
+                // Force Host Navigation immediately
+                router.nav('reveal');
+
+                // Host handles the phase timer
+                setTimeout(() => {
+                    Game.state.phase = 'game';
+                    Game.sync();
+                    // Force Host Navigation
+                    const me = Game.state.players.find(p => p.id === Game.state.me);
+                    router.nav('setup');
+                }, 4000);
             },
             
             generateNews: () => {
@@ -911,12 +946,6 @@
             c.innerHTML = `<div class="h-full flex flex-col justify-center items-center p-6 bg-black z-50"><div class="text-slate-500 uppercase tracking-widest mb-4 font-bold animate-pulse">Você vai governar</div><i data-lucide="flag" class="w-24 h-24 text-white mb-6 animate-zoom-in"></i><h1 class="text-5xl font-black text-gold-500 text-center uppercase animate-slide-up leading-tight">${me.country.name}</h1></div>`;
             
             // Auto-advance client logic handled by observation of phase change in Sync
-            if(!Game.state.host) {
-                 // Clients wait for phase 'game'
-            } else {
-                 // Host creates delay
-                 setTimeout(() => { Game.state.phase = 'game'; Game.sync(); }, 4000);
-            }
         }
         function renderSetup(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
@@ -1367,6 +1396,31 @@
                 <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Fechar</button>
             `;
             document.getElementById('modal-overlay').classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.openDetails = function(cid) { 
+            const p = Game.state.players.find(pl => pl.country && pl.country.id === cid);
+            const overlay = document.getElementById('modal-overlay');
+            if(!p) return;
+            const isMe = p.id === Game.state.me;
+            
+            const badgeHtml = p.badges.length ? p.badges.map(bid => {
+                const b = BADGES.find(x => x.id === bid);
+                return `<div onclick="openBadge('${bid}')" class="w-6 h-6 rounded-full ${b.bg} flex items-center justify-center cursor-pointer"><i data-lucide="${b.icon}" class="w-3 h-3 text-white"></i></div>`;
+            }).join('') : '';
+
+            document.getElementById('modal-content').innerHTML = `
+                <h2 class="text-2xl font-black text-white text-center mb-1">${p.country.name}</h2>
+                <p class="text-gold-500 font-bold text-sm text-center mb-4 uppercase tracking-wider">${p.name}</p>
+                <div class="flex justify-center gap-2 mb-6">${badgeHtml}</div>
+                ${!isMe ? `<div class="space-y-2 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Governo</span><span class="text-white">${p.style ? p.style.name : '?'}</span></div>
+                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Situação</span><span class="${getStat('eco', p.stats.eco).c}">${getStat('eco', p.stats.eco).t}</span></div>
+                </div>` : '<p class="text-center text-blue-300 text-sm">Território Soberano</p>'}
+                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-6 w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>
+            `;
+            overlay.classList.remove('hidden');
             lucide.createIcons();
         };
 
