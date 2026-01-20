@@ -67,6 +67,10 @@
         
         .crisis-glow { animation: crisisPulse 2s infinite; }
         @keyframes crisisPulse { 0% { stroke: #ef4444; stroke-width: 2; } 50% { stroke: #7f1d1d; stroke-width: 4; } 100% { stroke: #ef4444; stroke-width: 2; } }
+
+        /* News Card Style */
+        .news-card { background: rgba(30, 41, 59, 0.7); border-left: 4px solid; margin-bottom: 12px; padding: 16px; border-radius: 0 8px 8px 0; position: relative; }
+        .news-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; background: rgba(255,255,255,0.1); }
     </style>
 </head>
 <body class="text-slate-100 font-sans antialiased selection:bg-gold-500 selection:text-black">
@@ -87,7 +91,7 @@
             <div class="flex items-center gap-3">
                 <div class="flex flex-col items-end">
                     <span class="text-[10px] text-slate-400 uppercase font-bold">Calendário</span>
-                    <span class="text-sm font-bold text-gold-500 leading-none" id="round-display">Ano 1/4 • Semestre 1/2</span>
+                    <span class="text-sm font-bold text-gold-500 leading-none" id="round-display">Ano 1/4 • Sem 1/2</span>
                 </div>
                 <button onclick="Game.exitGame()" class="p-2 bg-red-900/20 text-red-400 rounded hover:bg-red-900/40">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
@@ -335,6 +339,7 @@
                     c.on('data', d => Game.handleData(d, c));
                     c.send({t:'SYNC', s:Game.state});
                 });
+                Game.peer.on('error', err => showToast("Erro: " + err.type, 'error'));
             },
 
             joinRoom: (name, code) => {
@@ -349,7 +354,23 @@
                         c.send({ t:'JOIN', p:{ id: Game.state.me, name } });
                     });
                     c.on('data', d => Game.handleData(d));
+                    c.on('close', () => {
+                        showToast('Conexão perdida com o Host', 'error');
+                        setTimeout(() => location.reload(), 2000);
+                    });
                 });
+                Game.peer.on('error', err => showToast("Erro: Sala não encontrada", 'error'));
+            },
+
+            leaveRoom: () => {
+                if(Game.state.host) {
+                    // Host closing logic
+                    Game.conn.forEach(c => c.send({t:'KICK', reason: 'A sala foi encerrada pelo líder.'}));
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    if(Game.hostConn) Game.hostConn.send({t:'LEAVE', id: Game.state.me});
+                    location.reload();
+                }
             },
 
             createPlayer: (id, name) => ({
@@ -365,6 +386,16 @@
             }),
 
             handleData: (d, src) => {
+                if(d.t === 'ERROR') {
+                    showToast(d.msg, 'error');
+                    if(d.reload) setTimeout(()=>location.reload(), 2000);
+                    return;
+                }
+                if(d.t === 'KICK') {
+                    alert(d.reason || "Você foi desconectado.");
+                    location.reload();
+                    return;
+                }
                 if(d.t === 'SYNC') {
                     Game.state = d.s;
                     Game.updateHUD(); // Always update HUD on sync
@@ -384,17 +415,26 @@
                         if(decBadge) decBadge.classList.toggle('hidden', me.ready);
                     }
 
-                    if(['country', 'map', 'decisions', 'relations', 'news'].includes(router.cur)) {
+                    if(['country', 'map', 'decisions', 'relations', 'news', 'lobby'].includes(router.cur)) {
                         Game.updateHUD();
                         router.render();
                     }
                 }
                 if(Game.state.host) {
                     if(d.t === 'JOIN') {
-                        if(!Game.state.players.find(p=>p.id===d.p.id)) {
-                            Game.state.players.push(Game.createPlayer(d.p.id, d.p.name));
-                            Game.sync();
+                        const nameExists = Game.state.players.some(p => p.name.toLowerCase() === d.p.name.toLowerCase());
+                        if(nameExists) {
+                            src.send({t:'ERROR', msg: 'Nome já em uso nesta sala.', reload: true});
+                        } else {
+                            if(!Game.state.players.find(p=>p.id===d.p.id)) {
+                                Game.state.players.push(Game.createPlayer(d.p.id, d.p.name));
+                                Game.sync();
+                            }
                         }
+                    }
+                    if(d.t === 'LEAVE') {
+                        Game.state.players = Game.state.players.filter(p => p.id !== d.id);
+                        Game.sync();
                     }
                     if(d.t === 'ACT') Game.handleAct(d.a, d.p);
                 }
@@ -413,7 +453,7 @@
                 if(rd) {
                     const year = Math.ceil(Game.state.round / 2);
                     const sem = (Game.state.round % 2 === 0) ? 2 : 1;
-                    rd.innerText = `Ano ${year}/4 • Semestre ${sem}/2`;
+                    rd.innerText = `Ano ${year}/4 • Sem ${sem}/2`;
                 }
             },
 
@@ -430,6 +470,16 @@
                             if(style.initial.eco) p.stats.eco += style.initial.eco;
                             if(style.initial.pop) p.stats.pop += style.initial.pop;
                             if(style.initial.stab) p.stats.stab += style.initial.stab;
+                            
+                            // Log News for Government Choice
+                            const changes = Object.entries(style.initial).map(([k,v]) => `${k.toUpperCase()} ${v>0?'+':''}${v}`).join(', ');
+                            Game.state.news.general.unshift({
+                                title: p.country.name,
+                                text: `${p.country.name} instituiu: ${style.name}.`,
+                                detail: `(${changes})`,
+                                type: 'info',
+                                round: Game.state.round
+                            });
                         }
                         Game.clampStats(p);
                     }
@@ -446,6 +496,19 @@
                                  const finalVal = Game.calcEff(v, k, p, isEpic);
                                  p.stats[k] += finalVal;
                              });
+                        }
+                        
+                        // Add news about decision
+                        const newsText = `${p.country.name} aprovou: ${chosenOption.label}`;
+                        // We don't spam general news with every decision, only Epics or Major impacts could go here, 
+                        // but user asked for updating news. Let's add significant ones.
+                        if(Math.random() > 0.5 || currentDecision.isEpic) {
+                             Game.state.news.general.unshift({
+                                title: `SEM ${Game.state.round}`,
+                                text: `${p.country.name} decidiu: ${chosenOption.label} em "${currentDecision.text.substring(0,30)}..."`,
+                                type: 'info',
+                                round: Game.state.round
+                            });
                         }
                         
                         if(chosenOption.badge && !p.badges.includes(chosenOption.badge)) p.badges.push(chosenOption.badge);
@@ -504,6 +567,14 @@
                             
                             if(proj.badge && !p.badges.includes(proj.badge)) p.badges.push(proj.badge);
                             p.projects.push(proj.id);
+                            
+                            Game.state.news.general.unshift({
+                                title: `SEM ${Game.state.round}`,
+                                text: `NOVA OBRA: ${p.country.name} iniciou ${proj.name}.`,
+                                type: 'good',
+                                round: Game.state.round
+                            });
+
                             Game.clampStats(p);
                         }
                     }
@@ -522,6 +593,12 @@
                 
                 if(type === 'ASK_HELP') {
                     p.helpRequested = true;
+                    Game.state.news.general.unshift({
+                         title: 'CRISE',
+                         text: `${p.country.name} pede socorro internacional!`,
+                         type: 'bad',
+                         round: Game.state.round
+                    });
                 }
                 
                 if(type === 'SEND_HELP') {
@@ -545,8 +622,10 @@
                              
                              // Add news event about it
                              Game.state.news.general.unshift({
-                                 title: 'Ajuda Humanitária',
-                                 text: `${p.country.name} enviou ajuda ${isTotal ? 'massiva' : 'emergencial'} para ${target.country.name}.`
+                                 title: 'AJUDA',
+                                 text: `${p.country.name} salvou ${target.country.name} com ajuda ${isTotal ? 'financeira' : 'humanitária'}.`,
+                                 type: 'good',
+                                 round: Game.state.round
                              });
                          }
                      }
@@ -647,9 +726,20 @@
             },
 
             startMatch: () => {
+                // CRITICAL FIX: Only Host runs this
                 const playable = COUNTRIES.filter(c => !c.neutral);
                 const shuffled = [...playable].sort(()=>0.5-Math.random());
-                
+                const year = Math.ceil(Game.state.round / 2);
+                const sem = (Game.state.round % 2 === 0) ? 2 : 1;
+                const dateStr = `Ano ${year}/4 • Sem ${sem}/2`;
+
+                // Reset News
+                Game.state.news = {
+                    main: { title: "Novos Presidentes Assumem o Poder", desc: "Uma nova era política começa na América do Sul. O mundo observa atentamente.", date: dateStr },
+                    general: [{ title: 'Mundo', text: "Mercados globais reagem à posse dos novos líderes.", round: 1 }]
+                };
+
+                // Assign to players in state
                 Game.state.players.forEach((p,i) => {
                     p.country = shuffled[i % shuffled.length];
                     p.activeProjects = [];
@@ -670,76 +760,50 @@
                     const invDeck = [...INVESTMENT_POOL].sort(()=>0.5-Math.random());
                     p.availableInvestments = invDeck.slice(0, 4);
                     
-                    // Assign 4 Random Gov Options
+                    // Assign 4 Random Gov Options - UNIQUE PER PLAYER NOW
                     const govDeck = [...GOV_STYLES].sort(()=>0.5-Math.random());
                     p.govOptions = govDeck.slice(0, 4).map(g => g.id);
                 });
                 
-                Game.state.news = {
-                    main: { title: "Novos Presidentes Assumem o Poder", desc: "Uma nova era política começa na América do Sul. O mundo observa atentamente.", date: "Ano 1/4 • Semestre 1/2" },
-                    general: [{ text: "Mercados globais reagem à posse dos novos líderes.", title: "Mundo" }]
-                };
-                
                 Game.state.phase = 'reveal';
                 Game.state.round = 1;
-                router.nav('reveal');
-                Game.sync();
+                Game.sync(); // Broadcast finalized setup to everyone
                 
-                setTimeout(() => { Game.state.phase = 'game'; router.nav('setup'); Game.sync(); }, 4000);
+                // Host handles the timer for everyone (via sync updates if needed, or just assumes clients run parallel)
+                // Better: Clients watch phase change.
             },
             
             generateNews: () => {
                 const players = Game.state.players.filter(p => p.country);
                 let main = null;
-                let general = [...(Game.state.news.general || [])].slice(0, 5); // Keep old news
+                // We don't overwrite general news anymore, we prepend to it.
+                // Just create main headline here.
                 
                 const year = Math.ceil(Game.state.round / 2);
                 const sem = (Game.state.round % 2 === 0) ? 2 : 1;
-                const dateStr = `Ano ${year}/4 • Semestre ${sem}/2`;
+                const dateStr = `Ano ${year}/4 • Sem ${sem}/2`;
 
-                // Add round specific news
-                if(Game.state.round === 1) {
-                    main = { title: "Início de Mandato", desc: "Os novos presidentes definem as diretrizes de suas nações.", date: dateStr };
-                    players.forEach(p => {
-                         general.unshift({ title: p.country.name, text: `${p.country.name} declarou regime ${p.style.name}.` });
-                    });
+                // Find extremes for headline
+                const sortedEco = [...players].sort((a,b) => b.stats.eco - a.stats.eco);
+                const bestEco = sortedEco[0];
+                const worstStab = [...players].sort((a,b) => a.stats.stab - b.stats.stab)[0];
+                
+                // Main News Decision
+                if (worstStab.stats.stab < 30) {
+                    main = { title: `Caos em ${worstStab.country.name}`, desc: "Protestos violentos tomam as ruas. O governo perde o controle.", date: dateStr };
+                } else if (bestEco.stats.eco > 80) {
+                    main = { title: `Milagre Econômico em ${bestEco.country.name}`, desc: "Analistas internacionais elogiam o crescimento recorde.", date: dateStr };
                 } else {
-                    // Find extremes
-                    const sortedEco = [...players].sort((a,b) => b.stats.eco - a.stats.eco);
-                    const bestEco = sortedEco[0];
-                    const worstEco = sortedEco[sortedEco.length-1];
-
-                    const sortedStab = [...players].sort((a,b) => b.stats.stab - a.stats.stab);
-                    const worstStab = sortedStab[sortedStab.length-1];
-                    
-                    // Main News Decision
-                    if (worstStab.stats.stab < 30) {
-                        main = { title: `Caos em ${worstStab.country.name}`, desc: "Protestos violentos tomam as ruas. O governo perde o controle.", date: dateStr };
-                    } else if (bestEco.stats.eco > 80) {
-                        main = { title: `Milagre Econômico em ${bestEco.country.name}`, desc: "Analistas internacionais elogiam o crescimento recorde.", date: dateStr };
-                    } else {
-                        const randomEvents = [
-                             { t: "Cimeira do Clima", d: "Líderes debatem metas de carbono." },
-                             { t: "Tensão Comercial", d: "Tarifas de importação geram atrito no bloco." },
-                             { t: "Avanço Tecnológico", d: "Novas startups impulsionam a região." }
-                        ];
-                        const ev = randomEvents[Math.floor(Math.random()*randomEvents.length)];
-                        main = { title: ev.t, desc: ev.d, date: dateStr };
-                    }
-
-                    // General News Highlights
-                    if(worstEco.stats.eco < 30) general.unshift({ title: "Economia", text: `Inflação dispara na ${worstEco.country.name}.` });
-                    if(sortedEco[0].stats.pop > 80) general.unshift({ title: "Política", text: `Presidente da ${sortedEco[0].country.name} é aclamado pelo povo.` });
-                    
-                    players.forEach(p => {
-                        if(p.activeProjects && p.activeProjects.length > 0) {
-                            const ap = p.activeProjects[0];
-                            if(Math.random() > 0.6) general.unshift({ title: p.country.name, text: `${p.country.name} avança com ${ap.name}.` });
-                        }
-                    });
+                    const randomEvents = [
+                            { t: "Cimeira do Clima", d: "Líderes debatem metas de carbono." },
+                            { t: "Tensão Comercial", d: "Tarifas de importação geram atrito no bloco." },
+                            { t: "Avanço Tecnológico", d: "Novas startups impulsionam a região." }
+                    ];
+                    const ev = randomEvents[Math.floor(Math.random()*randomEvents.length)];
+                    main = { title: ev.t, desc: ev.d, date: dateStr };
                 }
 
-                Game.state.news = { main, general: general.slice(0, 15) };
+                Game.state.news.main = main;
             },
 
             selectDoctrine: (sid) => {
@@ -830,17 +894,35 @@
             c.innerHTML = `<div class="h-full flex flex-col justify-center items-center p-6 animate-fade-in"><i data-lucide="globe-2" class="w-20 h-20 text-gold-500 mb-4"></i><h1 class="text-3xl font-black text-center mb-8">IMPÉRIO DOS<br><span class="text-gold-500">PRESIDENTES</span></h1><div class="w-full max-w-xs space-y-4"><input id="inp-name" class="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 focus:border-gold-500 outline-none" placeholder="Seu Nome" value="${localStorage.getItem('pname')||''}"><button onclick="Game.createRoom(document.getElementById('inp-name').value)" class="w-full bg-gold-500 text-dark-900 font-bold py-4 rounded-xl">Criar Sala</button><div class="flex gap-2"><input id="inp-code" class="w-24 bg-slate-800 text-center p-4 rounded-xl border border-slate-600 uppercase" placeholder="COD"><button onclick="Game.joinRoom(document.getElementById('inp-name').value, document.getElementById('inp-code').value)" class="flex-1 bg-blue-600 font-bold py-4 rounded-xl">Entrar</button></div></div></div>`;
         }
         function renderLobby(c) {
-            c.innerHTML = `<div class="h-full p-6 pt-20 flex flex-col animate-slide-up"><div class="text-center mb-8"><p class="text-slate-400 text-xs uppercase">Código da Sala</p><h2 class="text-5xl font-mono font-bold tracking-widest text-white select-all">${Game.state.room}</h2></div><div class="flex-1 space-y-2 overflow-y-auto"><h3 class="font-bold text-slate-400 mb-2">Jogadores (${Game.state.players.length})</h3>${Game.state.players.map(p => `<div class="bg-slate-800 p-4 rounded-xl flex items-center gap-3 border border-slate-700"><div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="user" class="w-4 h-4"></i></div><span class="font-bold">${p.name}</span></div>`).join('')}</div>${Game.state.host ? `<button onclick="Game.startMatch()" class="mt-6 w-full bg-green-600 py-4 rounded-xl font-bold text-white shadow-lg shrink-0">INICIAR JOGO</button>` : `<p class="text-center text-slate-500 mt-6 animate-pulse shrink-0">Aguardando Host...</p>`}</div>`;
+            c.innerHTML = `<div class="h-full p-6 pt-20 flex flex-col animate-slide-up"><div class="text-center mb-8"><p class="text-slate-400 text-xs uppercase">Código da Sala</p><h2 class="text-5xl font-mono font-bold tracking-widest text-white select-all">${Game.state.room}</h2></div><div class="flex-1 space-y-2 overflow-y-auto"><h3 class="font-bold text-slate-400 mb-2">Jogadores (${Game.state.players.length})</h3>${Game.state.players.map((p, idx) => `<div class="bg-slate-800 p-4 rounded-xl flex items-center gap-3 border border-slate-700"><div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="user" class="w-4 h-4"></i></div><span class="font-bold flex-1">${p.name} ${idx === 0 ? '<span class="text-[10px] bg-gold-500 text-black px-1 rounded ml-2">HOST</span>' : ''}</span></div>`).join('')}</div>
+            <div class="mt-6 flex flex-col gap-3 shrink-0">
+                ${Game.state.host ? `<button onclick="Game.startMatch()" class="w-full bg-green-600 py-4 rounded-xl font-bold text-white shadow-lg">INICIAR JOGO</button>` : `<p class="text-center text-slate-500 animate-pulse">Aguardando Host...</p>`}
+                <button onclick="Game.leaveRoom()" class="w-full bg-red-900/40 text-red-400 py-3 rounded-xl font-bold border border-red-900/50">Sair da Sala</button>
+            </div>
+            </div>`;
         }
         function renderReveal(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
+            // Safety check for slow syncs
+            if(!me || !me.country) {
+                if(Game.state.phase === 'game') router.nav('setup'); // Recover
+                return;
+            }
             c.innerHTML = `<div class="h-full flex flex-col justify-center items-center p-6 bg-black z-50"><div class="text-slate-500 uppercase tracking-widest mb-4 font-bold animate-pulse">Você vai governar</div><i data-lucide="flag" class="w-24 h-24 text-white mb-6 animate-zoom-in"></i><h1 class="text-5xl font-black text-gold-500 text-center uppercase animate-slide-up leading-tight">${me.country.name}</h1></div>`;
+            
+            // Auto-advance client logic handled by observation of phase change in Sync
+            if(!Game.state.host) {
+                 // Clients wait for phase 'game'
+            } else {
+                 // Host creates delay
+                 setTimeout(() => { Game.state.phase = 'game'; Game.sync(); }, 4000);
+            }
         }
         function renderSetup(c) {
             const me = Game.state.players.find(p => p.id === Game.state.me);
             if(!me || !me.country) return;
             
-            // Limit to 4 options (use stored options or fallback to first 4)
+            // Use assigned options
             const availableIds = me.govOptions && me.govOptions.length ? me.govOptions : GOV_STYLES.map(g=>g.id).slice(0,4);
             const options = availableIds.map(id => GOV_STYLES.find(g => g.id === id)).filter(Boolean);
 
@@ -1123,14 +1205,14 @@
                 } else { contentHtml = `<div class="p-6 text-center text-slate-500">Sem manchetes.</div>`; }
             } else {
                  if (news.general && news.general.length > 0) {
-                    contentHtml = `<div class="bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 divide-y divide-slate-700/50">
+                    contentHtml = `<div class="space-y-2">
                         ${news.general.map((n, idx) => `
-                        <div onclick="openNewsDetail(${idx})" class="p-4 hover:bg-slate-800/50 transition-colors cursor-pointer group flex gap-4">
-                             <div class="mt-1.5 w-1.5 h-1.5 rounded-full bg-slate-500 group-hover:bg-gold-500 shrink-0 transition-colors"></div>
-                             <div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase">${n.title || 'Geral'}</p>
-                                <p class="text-sm text-slate-300 font-medium group-hover:text-white">${n.text}</p>
+                        <div onclick="openNewsDetail(${idx})" class="news-card hover:bg-slate-800 transition-colors cursor-pointer group border-slate-700/50">
+                             <div class="absolute top-0 bottom-0 left-0 w-1 ${n.type === 'good' ? 'bg-green-500' : n.type === 'bad' ? 'bg-red-500' : 'bg-slate-500'}"></div>
+                             <div class="mb-1">
+                                <span class="news-tag text-slate-400">SEM ${n.round || Game.state.round}</span>
                              </div>
+                             <p class="text-sm font-medium text-white mb-1 group-hover:text-gold-400 transition-colors">${n.text} ${n.detail ? `<span class="text-gold-500 font-bold text-xs">${n.detail}</span>` : ''}</p>
                         </div>`).join('')}
                     </div>`;
                 } else { contentHtml = `<div class="p-6 text-center text-slate-500">Nada a relatar.</div>`; }
@@ -1285,31 +1367,6 @@
                 <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Fechar</button>
             `;
             document.getElementById('modal-overlay').classList.remove('hidden');
-            lucide.createIcons();
-        };
-
-        window.openDetails = function(cid) { 
-            const p = Game.state.players.find(pl => pl.country && pl.country.id === cid);
-            const overlay = document.getElementById('modal-overlay');
-            if(!p) return;
-            const isMe = p.id === Game.state.me;
-            
-            const badgeHtml = p.badges.length ? p.badges.map(bid => {
-                const b = BADGES.find(x => x.id === bid);
-                return `<div onclick="openBadge('${bid}')" class="w-6 h-6 rounded-full ${b.bg} flex items-center justify-center cursor-pointer"><i data-lucide="${b.icon}" class="w-3 h-3 text-white"></i></div>`;
-            }).join('') : '';
-
-            document.getElementById('modal-content').innerHTML = `
-                <h2 class="text-2xl font-black text-white text-center mb-1">${p.country.name}</h2>
-                <p class="text-gold-500 font-bold text-sm text-center mb-4 uppercase tracking-wider">${p.name}</p>
-                <div class="flex justify-center gap-2 mb-6">${badgeHtml}</div>
-                ${!isMe ? `<div class="space-y-2 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Governo</span><span class="text-white">${p.style ? p.style.name : '?'}</span></div>
-                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Situação</span><span class="${getStat('eco', p.stats.eco).c}">${getStat('eco', p.stats.eco).t}</span></div>
-                </div>` : '<p class="text-center text-blue-300 text-sm">Território Soberano</p>'}
-                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-6 w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>
-            `;
-            overlay.classList.remove('hidden');
             lucide.createIcons();
         };
 
