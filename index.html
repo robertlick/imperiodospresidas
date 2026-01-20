@@ -401,11 +401,25 @@
                 if (data.type === 'SYNC_STATE') {
                     const myId = Game.state.myId;
                     const isHost = Game.state.isHost;
+                    const wasAtHome = router.current === 'home';
+
                     Game.state = data.payload;
                     Game.state.myId = myId;
                     Game.state.isHost = isHost;
                     // Note: Client does NOT saveLocal() here to avoid persistence on reload
                     if(isHost) Game.saveLocal(); 
+
+                    if (wasAtHome) {
+                        // Check if my ID is in the player list (synced from host)
+                        const amIInList = Game.state.players.some(p => p.id === myId);
+                        if (amIInList) {
+                            if (Game.state.phase === 'lobby') {
+                                router.navigate('lobby');
+                            } else {
+                                router.navigate('country');
+                            }
+                        }
+                    }
 
                     router.renderCurrent();
                     router.renderHeader();
