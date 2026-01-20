@@ -405,19 +405,25 @@
                     return;
                 }
                 if(d.t === 'SYNC') {
+                    // CRITICAL: Restore local identity before proceeding
+                    const myId = Game.state.me;
+                    const amIHost = Game.state.host;
+                    
                     Game.state = d.s;
+                    
+                    // Restore local ID and host status to avoid identity crisis
+                    Game.state.me = myId;
+                    Game.state.host = amIHost;
+
                     Game.updateHUD();
                     
                     const me = Game.state.players.find(p => p.id === Game.state.me);
 
-                    // --- ROUTING LOGIC FIX: PREVENT FLASHING & LOOPS ---
-                    // Only navigate if we are NOT in the target view
-                    
+                    // --- ROUTING LOGIC ---
                     if (Game.state.phase === 'reveal') {
                         if (router.cur !== 'reveal') router.nav('reveal');
                     } 
                     else if (Game.state.phase === 'game') {
-                        // If we are still in 'lobby', 'reveal' or 'home', we MUST move to game views
                         if (['lobby', 'reveal', 'home'].includes(router.cur)) {
                             if (me) {
                                 router.nav(me.style ? 'country' : 'setup');
@@ -425,22 +431,17 @@
                         }
                     }
                     else if (Game.state.phase === 'lobby' && router.cur !== 'lobby' && !Game.state.host) {
-                        // Just in case we sync back to lobby
                         router.nav('lobby');
                     }
-                    
-                    // --- END ROUTING FIX ---
                     
                     if(me) {
                         const relBadge = document.getElementById('badge-relations');
                         if(relBadge) relBadge.classList.toggle('hidden', (me.requests.length + (me.notifications || 0)) === 0);
                         
-                        // Check Decision Badge (if turn not done)
                         const decBadge = document.getElementById('badge-decision');
                         if(decBadge) decBadge.classList.toggle('hidden', me.ready);
                     }
 
-                    // Only re-render purely visual updates if we are already in the correct view
                     if(['country', 'map', 'decisions', 'relations', 'news', 'lobby'].includes(router.cur)) {
                         Game.updateHUD();
                         router.render();
@@ -1396,31 +1397,6 @@
                 <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-4 w-full py-3 bg-slate-800 rounded-xl font-bold text-slate-400">Fechar</button>
             `;
             document.getElementById('modal-overlay').classList.remove('hidden');
-            lucide.createIcons();
-        };
-
-        window.openDetails = function(cid) { 
-            const p = Game.state.players.find(pl => pl.country && pl.country.id === cid);
-            const overlay = document.getElementById('modal-overlay');
-            if(!p) return;
-            const isMe = p.id === Game.state.me;
-            
-            const badgeHtml = p.badges.length ? p.badges.map(bid => {
-                const b = BADGES.find(x => x.id === bid);
-                return `<div onclick="openBadge('${bid}')" class="w-6 h-6 rounded-full ${b.bg} flex items-center justify-center cursor-pointer"><i data-lucide="${b.icon}" class="w-3 h-3 text-white"></i></div>`;
-            }).join('') : '';
-
-            document.getElementById('modal-content').innerHTML = `
-                <h2 class="text-2xl font-black text-white text-center mb-1">${p.country.name}</h2>
-                <p class="text-gold-500 font-bold text-sm text-center mb-4 uppercase tracking-wider">${p.name}</p>
-                <div class="flex justify-center gap-2 mb-6">${badgeHtml}</div>
-                ${!isMe ? `<div class="space-y-2 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Governo</span><span class="text-white">${p.style ? p.style.name : '?'}</span></div>
-                     <div class="flex justify-between text-xs font-bold uppercase"><span class="text-slate-500">Situação</span><span class="${getStat('eco', p.stats.eco).c}">${getStat('eco', p.stats.eco).t}</span></div>
-                </div>` : '<p class="text-center text-blue-300 text-sm">Território Soberano</p>'}
-                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="mt-6 w-full py-3 bg-slate-700 rounded-xl font-bold">Fechar</button>
-            `;
-            overlay.classList.remove('hidden');
             lucide.createIcons();
         };
 
