@@ -27,10 +27,15 @@
                         'fade-in': 'fadeIn 0.3s ease-out',
                         'slide-up': 'slideUp 0.3s ease-out',
                         'pulse-slow': 'pulse 3s infinite',
+                        'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+                        'shimmer': 'shimmer 2s linear infinite',
+                        'float': 'float 3s ease-in-out infinite',
                     },
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                        shimmer: { '0%': { backgroundPosition: '-1000px 0' }, '100%': { backgroundPosition: '1000px 0' } },
+                        float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } }
                     }
                 }
             }
@@ -48,6 +53,19 @@
         .news-rumor { border-color: #eab308; background: rgba(234, 179, 8, 0.1); }
         .gov-card { transition: all 0.2s; }
         .gov-card:active { transform: scale(0.98); border-color: #EAB308; }
+        .stat-pill { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800; display: inline-flex; align-items: center; gap: 2px; }
+        .project-card.disabled { opacity: 0.5; filter: grayscale(0.8); pointer-events: none; }
+        
+        /* Map Alert Pulse */
+        .map-alert { transform-box: fill-box; transform-origin: center; animation: pulseAlert 1.5s infinite; }
+        @keyframes pulseAlert { 0% { r: 4; opacity: 1; } 100% { r: 12; opacity: 0; } }
+
+        /* Epic Card Gradient */
+        .epic-gradient { background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 50%, #db2777 100%); }
+        .epic-text { background: linear-gradient(to right, #facc15, #fef08a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .clickable-news { cursor: pointer; transition: transform 0.1s; }
+        .clickable-news:active { transform: scale(0.98); filter: brightness(1.2); }
     </style>
 </head>
 <body class="h-screen w-screen overflow-hidden flex flex-col">
@@ -157,12 +175,12 @@
     <script>
         // --- DATA & CONFIG ---
         const COUNTRIES = [
-            { id: 've', name: 'Venezuela', path: 'M 90 20 L 150 30 L 140 70 L 90 80 Z' },
-            { id: 'co', name: 'Colômbia', path: 'M 40 40 L 90 20 L 90 80 L 40 90 Z' },
-            { id: 'pe', name: 'Peru', path: 'M 30 90 L 90 80 L 100 160 L 40 180 Z' },
-            { id: 'br', name: 'Brasil', path: 'M 90 80 L 140 70 L 190 90 L 210 180 L 150 240 L 100 160 Z' },
-            { id: 'cl', name: 'Chile', path: 'M 50 200 L 70 200 L 70 420 L 50 400 Z' },
-            { id: 'ar', name: 'Argentina', path: 'M 80 200 L 150 240 L 120 400 L 70 420 L 70 200 Z' }
+            { id: 've', name: 'Venezuela', path: 'M 90 20 L 150 30 L 140 70 L 90 80 Z', center: {x: 120, y: 50} },
+            { id: 'co', name: 'Colômbia', path: 'M 40 40 L 90 20 L 90 80 L 40 90 Z', center: {x: 65, y: 60} },
+            { id: 'pe', name: 'Peru', path: 'M 30 90 L 90 80 L 100 160 L 40 180 Z', center: {x: 60, y: 130} },
+            { id: 'br', name: 'Brasil', path: 'M 90 80 L 140 70 L 190 90 L 210 180 L 150 240 L 100 160 Z', center: {x: 150, y: 150} },
+            { id: 'cl', name: 'Chile', path: 'M 50 200 L 70 200 L 70 420 L 50 400 Z', center: {x: 60, y: 300} },
+            { id: 'ar', name: 'Argentina', path: 'M 80 200 L 150 240 L 120 400 L 70 420 L 70 200 Z', center: {x: 100, y: 300} }
         ];
 
         const ALL_GOV_STYLES = [
@@ -188,57 +206,126 @@
             { id: 'crisis', name: 'Governo de Crise', desc: 'Assume no caos. Começa mal, viradas dão bônus enormes.', bonus: { eco: -20, pop: -20, stab: -20 } }
         ];
 
-        const DECISIONS_POOL = [
+        // OPTIONAL INVESTMENTS (Expanded)
+        const ALL_OPTIONAL_PROJECTS = [
+            { id: 'infra_roads', name: 'Rodovias Nacionais', desc: 'Logística eficiente.', cost: { eco: 20 }, revenue: { eco: 6 }, duration: 4 },
+            { id: 'social_program', name: 'Bolsa Auxílio', desc: 'Ajuda aos pobres.', cost: { eco: 10 }, revenue: { pop: 5 }, duration: 4 },
+            { id: 'oil_refinery', name: 'Refinaria Estatal', desc: 'Indústria pesada.', cost: { pop: 10, eco: 15 }, revenue: { eco: 10 }, duration: 3 },
+            { id: 'int_marketing', name: 'Turismo Internacional', desc: 'Melhora a imagem.', cost: { eco: 10 }, revenue: { stab: 5 }, duration: 3 },
+            { id: 'police_academy', name: 'Policiamento Urbano', desc: 'Ordem nas ruas.', cost: { pop: 5, eco: 10 }, revenue: { stab: 7 }, duration: 3 },
+            { id: 'tech_hub', name: 'Polo Tecnológico', desc: 'Inovação custosa.', cost: { eco: 25 }, revenue: { eco: 8, pop: 2 }, duration: 5 },
+            { id: 'uni_federal', name: 'Universidade Federal', desc: 'Educação superior.', cost: { eco: 15 }, revenue: { pop: 8 }, duration: 5 },
+            { id: 'hospital_net', name: 'Rede Hospitalar', desc: 'Saúde para todos.', cost: { eco: 20 }, revenue: { pop: 10, stab: 2 }, duration: 4 },
+            { id: 'agri_sub', name: 'Subsídio Agrícola', desc: 'Apoio ao campo.', cost: { eco: 12 }, revenue: { stab: 5, eco: 2 }, duration: 3 },
+            { id: 'port_exp', name: 'Expansão Portuária', desc: 'Exportação em massa.', cost: { eco: 30 }, revenue: { eco: 12 }, duration: 4 },
+            { id: 'space_prog', name: 'Programa Espacial', desc: 'Orgulho nacional.', cost: { eco: 40 }, revenue: { stab: 10, pop: 5 }, duration: 2 },
+            { id: 'clean_energy', name: 'Parque Eólico', desc: 'Energia limpa.', cost: { eco: 18 }, revenue: { pop: 5, eco: 3 }, duration: 4 },
+            { id: 'anti_corruption', name: 'Força Tarefa', desc: 'Limpar o sistema.', cost: { stab: 10 }, revenue: { pop: 15, eco: 5 }, duration: 2 },
+            { id: 'arts_fund', name: 'Fundo Cultural', desc: 'Apoio às artes.', cost: { eco: 8 }, revenue: { pop: 6 }, duration: 3 },
+            { id: 'spy_network', name: 'Rede de Espionagem', desc: 'Olhos em tudo.', cost: { eco: 15, pop: -5 }, revenue: { stab: 10 }, duration: 3 }
+        ];
+
+        // SECRET OBJECTIVES POOL
+        const SECRET_OBJECTIVES = [
+            { id: 'aid_giver', type: 'aid', target: 2, title: 'Diplomata Benevolente', desc: 'Envie ajuda humanitária para 2 países em crise.', reward: { type: 'inf', val: 25, text: 'Prestígio Internacional (+25 Influência)' } },
+            { id: 'isolation', type: 'veto', target: 3, title: 'Lobo Solitário', desc: 'Vete 3 propostas para proteger seus interesses nacionais.', reward: { type: 'stat', stat: 'stab', val: 15, text: 'Soberania Inabalável (+15 Stab)' } },
+            { id: 'builder', type: 'project', target: 3, title: 'Arquiteto do Amanhã', desc: 'Complete o investimento em 3 projetos nacionais.', reward: { type: 'stat', stat: 'eco', val: 15, text: 'Boom Econômico (+15 Eco)' } },
+            { id: 'hegemony', type: 'influence', target: 40, title: 'Potência Hegemônica', desc: 'Acumule 40 pontos de Influência Global.', reward: { type: 'stat', stat: 'pop', val: 20, text: 'Líder do Continente (+20 Pop)' } }
+        ];
+
+        // EPIC EVENTS POOL (RARE & GAME CHANGING)
+        // ADDED 'globalEffect' to choices to impact other players
+        const EPIC_EVENTS_POOL = [
             { 
-                text: "Privatizar estatal de energia elétrica?", 
-                yes: { desc: "Venda rápida gera caixa, mas tarifas podem subir.", effect: { eco: 15, pop: -10 } },
-                no: { desc: "Mantém controle estatal e preços, mas aumenta dívida.", effect: { stab: 5, eco: -5 } }
+                id: 'epic_lithium', isEpic: true,
+                text: "DESCOBERTA HISTÓRICA: O Maior Depósito de Lítio do Mundo foi encontrado em seu solo!", 
+                yes: { desc: "Nacionalizar tudo (Ouro Branco)", effect: { eco: 40, stab: 20, pop: 15 }, globalEffect: { eco: -5, desc: "A nacionalização do lítio desestabilizou o mercado vizinho." }, badge: { icon: 'battery-charging', label: 'Rei do Lítio', description: 'Controla a energia do futuro.', color: 'text-cyan-400' } }, 
+                no: { desc: "Vender direitos para Big Techs", effect: { eco: 60, pop: -20 }, trait: { name: "Magnata Tech", source: "Vendeu lítio para o Vale do Silício.", desc: "Parceria Tech (+3 Eco/rodada)", bonus: { eco: 3 } } } 
             },
             { 
-                text: "Aumentar salário mínimo acima da inflação?", 
-                yes: { desc: "Aumenta poder de compra e felicidade, mas pressiona contas.", effect: { pop: 15, eco: -15 } },
-                no: { desc: "Austeridade fiscal agrada mercado, mas povo reclama.", effect: { eco: 10, pop: -10 } }
-            },
-            { 
-                text: "Censurar jornal opositor por 'Fake News'?", 
-                yes: { desc: "Silencia críticas e aumenta controle, mas gera revolta.", effect: { stab: 15, pop: -20 } },
-                no: { desc: "Mantém liberdade de imprensa, mas críticas continuam.", effect: { pop: 5, stab: -5 } }
-            },
-            { 
-                text: "Aceitar empréstimo do FMI com juros altos?", 
-                yes: { desc: "Dinheiro entra agora, mas soberania é afetada.", effect: { eco: 20, stab: -15 } },
-                no: { desc: "Recusa ajuda externa. Crise continua, mas com orgulho.", effect: { stab: 10, eco: -10 } }
-            },
-            { 
-                text: "Investir pesado em propaganda do governo?", 
-                yes: { desc: "Melhora imagem artificialmente, custa caro.", effect: { pop: 10, eco: -5 } },
-                no: { desc: "Economiza recursos, mas perde narrativa.", effect: { eco: 5 } }
+                id: 'epic_nobel', isEpic: true,
+                text: "MOMENTO DE GLÓRIA: Você foi indicado ao Prêmio Nobel da Paz por seus esforços regionais.", 
+                yes: { desc: "Aceitar com humildade", effect: { pop: 35, influence: 50 }, badge: { icon: 'award', label: 'Nobel da Paz', description: 'Reconhecimento global máximo.', color: 'text-yellow-300' } }, 
+                no: { desc: "Recusar (Ato Político)", effect: { stab: 30, pop: 10 }, trait: { name: "Ícone Rebelde", source: "Recusou o Nobel para criticar o sistema.", desc: "Fama anti-sistema (+2 Pop/rodada)", bonus: { pop: 2 } } } 
             },
             {
-                text: "Decretar Estado de Sítio preventivo?",
-                yes: { desc: "Controle total das ruas, medo generalizado.", effect: { stab: 30, pop: -25, eco: -10 } },
-                no: { desc: "Mantém normalidade democrática.", effect: { pop: 5 } }
+                id: 'epic_ruins', isEpic: true,
+                text: "MILAGRE ARQUEOLÓGICO: Um terremoto revelou uma Cidade de Ouro Perdida intacta.",
+                yes: { desc: "Focar em Turismo Global", effect: { eco: 30, pop: 20 }, globalEffect: { eco: -10, desc: "O turismo migrou massivamente para a Cidade de Ouro." }, trait: { name: "Meca Turística", source: "Hospeda a nova maravilha do mundo.", desc: "Turismo massivo (+3 Eco/rodada)", bonus: { eco: 3 } } },
+                no: { desc: "Explorar tesouros ocultos", effect: { eco: 50, pop: -10 } }
             },
             {
-                text: "Romper relações com superpotência rival?",
-                yes: { desc: "Agrado ideológico, mas perde parceiro comercial.", effect: { stab: 10, eco: -20 } },
-                no: { desc: "Pragmatismo diplomático.", effect: { eco: 5 } }
-            },
-            {
-                text: "Subsidiar combustível para caminhoneiros?",
-                yes: { desc: "Evita greve imediata, rombo no orçamento.", effect: { stab: 10, eco: -15 } },
-                no: { desc: "Risco de paralisação no país.", effect: { eco: 10, stab: -15 } }
-            },
-            {
-                text: "Adotar criptomoeda como moeda oficial?",
-                yes: { desc: "Modernidade atrai investidores de risco, mas gera instabilidade.", effect: { eco: 15, stab: -15 } },
-                no: { desc: "Mantém moeda tradicional e controle do banco central.", effect: { stab: 5 } }
-            },
-            {
-                text: "Criar imposto sobre grandes fortunas?",
-                yes: { desc: "Aumenta arrecadação e agrada o povo, elite se revolta.", effect: { pop: 20, eco: -10 } },
-                no: { desc: "Mantém investimentos da elite no país.", effect: { eco: 5, pop: -5 } }
+                id: 'epic_hack', isEpic: true,
+                text: "O VAZAMENTO DO SÉCULO: Hackers ofereceram dados sujos de TODOS os seus rivais.",
+                yes: { desc: "Publicar tudo (Caos Regional)", effect: { pop: 20, influence: 40 }, globalEffect: { pop: -15, stab: -10, desc: "Escândalos vazados causaram revolta popular em massa!" }, badge: { icon: 'skull', label: 'Dono da Verdade', description: 'Destruiu reputações rivais com vazamentos.', color: 'text-purple-500' } },
+                no: { desc: "Queimar os arquivos", effect: { stab: 40, influence: 20 }, badge: { icon: 'shield-check', label: 'Guardião Ético', description: 'Protegeu a estabilidade do continente.', color: 'text-blue-400' } }
             }
+        ];
+
+        // CHAINED EVENTS DEFINITION with BADGES & TRAITS & COUNTRY SPECIFICS
+        const DECISIONS_POOL = [
+            // BRASIL SPECIFIC
+            { id: 'br_leadership', countrySpecific: ['br'], text: "Liderar coalizão sul-americana na ONU?", yes: { desc: "Assumir protagonismo.", effect: { stab: 10, eco: -5 }, trait: { name: "Líder Regional", source: "Assumiu o protagonismo na coalizão da ONU.", desc: "Influência diplomática (+2 Pop/rodada)", bonus: { pop: 2 } } }, no: { desc: "Focar em problemas internos.", effect: { eco: 10, pop: -5 }, trait: { name: "Gigante Adormecido", source: "Negou liderança externa para focar no mercado interno.", desc: "Foco interno (+2 Eco/rodada)", bonus: { eco: 2 } } } },
+            { id: 'br_amazon', countrySpecific: ['br'], text: "Decreto de proteção total da Amazônia?", yes: { desc: "Fim do desmatamento.", effect: { pop: 15, eco: -15 }, badge: { icon: 'tree-pine', label: 'Pulmão do Mundo', description: 'Reconhecido mundialmente pela proteção absoluta da floresta amazônica.', color: 'text-green-500' } }, no: { desc: "Permitir agronegócio.", effect: { eco: 20, pop: -10 }, trait: { name: "Celeiro do Mundo", source: "Priorizou o agronegócio sobre a preservação.", desc: "Potência agrícola (+2 Eco/rodada)", bonus: { eco: 2 } } } },
+
+            // ARGENTINA SPECIFIC
+            { id: 'ar_debt', countrySpecific: ['ar'], text: "Romper relações com o FMI?", yes: { desc: "Soberania econômica.", effect: { pop: 20, eco: -25 }, trait: { name: "Orgulhoso", source: "Rompeu laços com o FMI em nome da soberania.", desc: "Nacionalismo forte (+2 Pop/rodada)", bonus: { pop: 2 } } }, no: { desc: "Austeridade fiscal.", effect: { eco: 15, pop: -20 }, trait: { name: "Pragmático", source: "Aceitou medidas impopulares para sanar as contas.", desc: "Ajuste fiscal (+2 Eco/rodada)", bonus: { eco: 2 } } } },
+            { id: 'ar_malvinas', countrySpecific: ['ar'], text: "Reivindicar Ilhas Malvinas diplomaticamente?", yes: { desc: "Unir o povo.", effect: { stab: 15, pop: 10 }, badge: { icon: 'flag', label: 'Causa Nacional', description: 'Unificou o país sob a bandeira da reivindicação territorial histórica.', color: 'text-blue-400' } }, no: { desc: "Evitar tensões.", effect: { eco: 5 } } },
+
+            // COLOMBIA SPECIFIC
+            { id: 'co_peace', countrySpecific: ['co'], text: "Anistia total para grupos armados?", yes: { desc: "Paz a qualquer custo.", effect: { stab: -10, pop: 10 }, trait: { name: "Pacificador", source: "Buscou a paz através do perdão e anistia.", desc: "Buscando harmonia (+2 Stab/rodada)", bonus: { stab: 2 } } }, no: { desc: "Combate militar.", effect: { stab: 15, pop: -10 }, trait: { name: "Mão de Ferro", source: "Escolheu combater a insurgência com força total.", desc: "Ordem pela força (+2 Stab/rodada)", bonus: { stab: 2 } } } },
+            
+            // VENEZUELA SPECIFIC
+            { id: 've_oil', countrySpecific: ['ve'], text: "Aumentar controle estatal sobre PDVSA?", yes: { desc: "Petróleo é do povo.", effect: { pop: 10, eco: -5 }, trait: { name: "Petrolífero", source: "Nacionalizou e centralizou a produção de petróleo.", desc: "Dependência do Ouro Negro (+3 Eco se preço alto)", bonus: { eco: 3 } } }, no: { desc: "Abrir para capital estrangeiro.", effect: { eco: 25, pop: -15 } } },
+
+            // CHILE SPECIFIC
+            { id: 'cl_const', countrySpecific: ['cl'], text: "Redigir nova constituição progressista?", yes: { desc: "Novo pacto social.", effect: { pop: 10, stab: -10 }, trait: { name: "Vanguardista", source: "Aprovou uma das constituições mais progressistas do mundo.", desc: "Modernização social (+2 Pop/rodada)", bonus: { pop: 2 } } }, no: { desc: "Manter estabilidade atual.", effect: { stab: 10, pop: -5 }, trait: { name: "Conservador", source: "Manteve as tradições institucionais antigas.", desc: "Ordem e progresso (+2 Stab/rodada)", bonus: { stab: 2 } } } },
+
+            // PERU SPECIFIC
+            { id: 'pe_heritage', countrySpecific: ['pe'], text: "Investir 50% do PIB em Turismo Inca?", yes: { desc: "Capital cultural.", effect: { eco: -15, pop: 15 }, trait: { name: "Anfitrião", source: "Transformou o país no maior destino turístico do continente.", desc: "Turismo forte (+2 Eco/rodada)", bonus: { eco: 2 } } }, no: { desc: "Focar em mineração.", effect: { eco: 15, pop: -5 }, trait: { name: "Extrativista", source: "Focou na exploração mineral intensiva.", desc: "Mineração forte (+2 Eco/rodada)", bonus: { eco: 2 } } } },
+
+            // STAT-BASED TRIGGERS (CRISIS)
+            { 
+                id: 'crisis_pop_low', 
+                text: "Sua popularidade está crítica (<30%)! As redes sociais pedem sua cabeça. O que fará?", 
+                condition: (p) => p.stats.pop < 30,
+                yes: { desc: "Lançar campanha massiva de marketing.", effect: { eco: -15, pop: 15 }, badge: { icon: 'megaphone', label: 'Populista Digital', description: 'Salvou o governo com memes e marketing.', color: 'text-pink-500'} },
+                no: { desc: "Ignorar e focar no trabalho.", effect: { pop: -5, stab: 5 } }
+            },
+            {
+                id: 'crisis_eco_low',
+                text: "Economia em ruínas (<30%)! Fome e desemprego assolam o país.",
+                condition: (p) => p.stats.eco < 30,
+                yes: { desc: "Congelar preços (Medida extrema).", effect: { pop: 10, eco: -5, stab: -10 }, trait: { name: "Intervencionista", source: "Congelou preços para conter a crise.", desc: "Controle estatal (+1 Pop, -1 Eco)", bonus: { pop: 1, eco: -1 } } },
+                no: { desc: "Pedir empréstimo de emergência.", effect: { eco: 15, stab: -10 } }
+            },
+            {
+                id: 'crisis_stab_low',
+                text: "Instabilidade perigosa (<30%)! Rumores de golpe militar nos quartéis.",
+                condition: (p) => p.stats.stab < 30,
+                yes: { desc: "Aumentar salário dos militares.", effect: { stab: 15, eco: -10 }, trait: { name: "Refém da Farda", source: "Comprou a lealdade militar.", desc: "Apoio militar (+2 Stab/rodada)", bonus: { stab: 2 } } },
+                no: { desc: "Denunciar na ONU.", effect: { pop: 5, stab: -5 } }
+            },
+
+            // GENERAL DECISIONS
+            { id: 'privatization', text: "Privatizar estatal de energia elétrica?", yes: { desc: "Caixa imediato.", effect: { eco: 15, pop: -10 }, trigger: 'priv_rates' }, no: { desc: "Controle estatal.", effect: { stab: 5, eco: -5 } } },
+            { id: 'priv_rates', isConsequence: true, text: "Consequência: A empresa aumentou tarifas.", yes: { desc: "Permitir (Mercado Feliz)", effect: { eco: 10, pop: -15 } }, no: { desc: "Intervir (Quebra contrato)", effect: { pop: 10, eco: -15, stab: -5 } } },
+            { id: 'min_wage', text: "Aumentar salário mínimo acima da inflação?", yes: { desc: "Poder de compra.", effect: { pop: 15, eco: -15 }, trigger: 'inflation_spike' }, no: { desc: "Austeridade.", effect: { eco: 10, pop: -10 } } },
+            { id: 'inflation_spike', isConsequence: true, text: "Alerta: Inflação subiu rápido.", yes: { desc: "Aumentar juros", effect: { eco: -5, pop: -5, stab: 5 } }, no: { desc: "Ignorar", effect: { pop: 5, eco: -20 } } },
+            { id: 'china_deal', text: "Assinar tratado de livre comércio com a China?", yes: { desc: "Produtos baratos.", effect: { eco: 20, stab: -5 }, trigger: 'usa_sanction' }, no: { desc: "Proteger indústria.", effect: { stab: 10, eco: -5 } } },
+            { id: 'usa_sanction', isConsequence: true, text: "EUA ameaçam sanções comerciais.", yes: { desc: "Romper com China", effect: { eco: -15, stab: 5 } }, no: { desc: "Ignorar EUA", effect: { stab: -10, eco: 5 } } },
+            
+            { id: 'censorship', text: "Censurar jornal opositor?", yes: { desc: "Silêncio.", effect: { stab: 15, pop: -20 }, trigger: 'protests', badge: { icon: 'eye-off', label: 'Censura Estatal', description: 'O governo fechou jornais e perseguiu opositores.', color: 'text-red-500' } }, no: { desc: "Liberdade.", effect: { pop: 5, stab: -5 } } },
+            { id: 'protests', isConsequence: true, text: "Protestos nas ruas!", yes: { desc: "Reprimir", effect: { stab: 10, pop: -25 } }, no: { desc: "Recuar", effect: { pop: 10, stab: -15 } } },
+            
+            // RANDOM & BADGES & TRAITS
+            { id: 'world_cup', text: "Candidatar-se para sediar a Copa do Mundo?", yes: { desc: "Circo para o povo.", effect: { pop: 15, eco: -20 }, badge: { icon: 'trophy', label: 'Sede da Copa', description: 'O mundo inteiro assistiu aos jogos nos estádios deste país.', color: 'text-yellow-400' } }, no: { desc: "Foco no essencial.", effect: { eco: 10, pop: -10 } } },
+            { id: 'usa_base', text: "Permitir base militar dos EUA no território?", yes: { desc: "Aliança forte.", effect: { stab: 20, pop: -15 }, badge: { icon: 'shield-alert', label: 'Base Americana', description: 'Hospeda tropas estrangeiras em troca de proteção militar.', color: 'text-blue-400' }, trait: { name: "Alinhado", source: "Permitiu bases militares dos EUA em solo nacional.", desc: "Apoio dos EUA (+2 Stab/rodada)", bonus: { stab: 2 } } }, no: { desc: "Soberania.", effect: { pop: 10, stab: -5 }, trait: { name: "Soberano", source: "Recusou presença militar estrangeira.", desc: "Independência (+2 Pop/rodada)", bonus: { pop: 2 } } } },
+            { id: 'amazon_road', text: "Construir estrada em reserva florestal?", yes: { desc: "Progresso.", effect: { eco: 15, pop: -10 }, trait: { name: "Desenvolvimentista", source: "Priorizou obras de infraestrutura em áreas protegidas.", desc: "Obras rápidas (+2 Eco/rodada)", bonus: { eco: 2 } } }, no: { desc: "Preservação.", effect: { pop: 10, eco: -10 }, badge: { icon: 'trees', label: 'Protetor Verde', description: 'Reconhecido por cancelar obras para salvar a floresta.', color: 'text-green-500' } } },
+            { id: 'bitcoin_city', text: "Criar cidade isenta de impostos para Bitcoin?", yes: { desc: "Inovação.", effect: { eco: 10, stab: -10 }, badge: { icon: 'bitcoin', label: 'Paraíso Cripto', description: 'Atraiu investidores globais com uma zona livre de impostos cripto.', color: 'text-orange-400' } }, no: { desc: "Aventura perigosa.", effect: { stab: 5 } } },
+            { id: 'narco_war', text: "Declarar guerra total aos cartéis?", yes: { desc: "Sangue nas ruas.", effect: { stab: -20, pop: 10 }, badge: { icon: 'swords', label: 'Guerra ao Crime', description: 'Enfrentou o crime organizado com força letal.', color: 'text-red-600' } }, no: { desc: "Acordo velado.", effect: { stab: 15, pop: -20 }, trait: { name: "Oportunista", source: "Fez vista grossa para o crime em troca de paz aparente.", desc: "Acordos obscuros (+2 Eco/rodada)", bonus: { eco: 2 } } } },
+            { id: 'nuclear_energy', text: "Iniciar programa nuclear?", yes: { desc: "Poder.", effect: { stab: 25, eco: -20 }, badge: { icon: 'zap', label: 'Potência Nuclear', description: 'Domina o ciclo atômico, gerando medo e respeito.', color: 'text-cyan-400' } }, no: { desc: "Não arriscar.", effect: { eco: 5 } } },
+            { id: 'diplomacy_act', text: "Mediar conflito vizinho?", yes: { desc: "Paz regional.", effect: { stab: 5, pop: 5 }, trait: { name: "Diplomático", source: "Evitou uma guerra regional através do diálogo.", desc: "Bom vizinho (+1 Pop/+1 Stab)", bonus: { pop: 1, stab: 1 } } }, no: { desc: "Não se envolver.", effect: { stab: 5 } } }
         ];
 
         // --- GAME ENGINE WITH PEERJS ---
@@ -255,31 +342,20 @@
             },
             peer: null,
             connections: [], 
-            
-            // Updated Prefix
             ID_PREFIX: 'ip-sa-v3-',
 
             initPeer: (idSuffix, isRetry = false) => {
                 const peerId = Game.ID_PREFIX + idSuffix;
-                
-                if(Game.peer) {
-                    Game.peer.destroy();
-                }
-
-                console.log(`Initializing Peer: ${peerId}`);
+                if(Game.peer) Game.peer.destroy();
                 Game.peer = new Peer(peerId, { debug: 1 });
 
                 Game.peer.on('open', (id) => {
-                    console.log('Peer Open. ID: ' + id);
                     Game.state.connectionStatus = 'connected';
-                    
                     if(Game.state.isHost) {
-                         // Only Host persists state for game continuity
                          Game.saveLocal();
                          router.navigate('lobby');
                          const el = document.getElementById('lobby-status');
-                         if(el) el.innerText = 'Sala Online (Servidor Conectado)';
-                         if(el) el.className = 'text-green-500 font-bold text-xs uppercase tracking-widest';
+                         if(el) { el.innerText = 'Sala Online (Servidor Conectado)'; el.className = 'text-green-500 font-bold text-xs uppercase tracking-widest'; }
                     } else {
                         Game.connectToHost();
                     }
@@ -294,50 +370,25 @@
                 });
 
                 Game.peer.on('error', (err) => {
-                    console.error("Peer Error:", err);
-                    
                     if(err.type === 'unavailable-id') {
                         if (Game.state.isHost && !isRetry) {
-                            console.warn("Host ID taken. Generating new code...");
                             Game.createRoom(localStorage.getItem('p_name'), true);
                             return;
                         } else if (Game.state.isHost) {
-                            showToast("Erro: ID Preso no Servidor. Tente novamente em 10s.", 'error');
+                            showToast("Erro: ID Preso. Tente novamente.", 'error');
                             Game.exitGame();
                             return;
                         }
                     }
-
-                    let msg = "Erro de conexão.";
-                    if(err.type === 'peer-unavailable') msg = "Sala não encontrada ou Host offline.";
-                    if(err.type === 'network') msg = "Erro de Rede. Verifique sua internet.";
-                    
-                    showToast(msg, 'error');
-                    
-                    const el = document.getElementById('lobby-status');
-                    if(el) {
-                        el.innerText = 'Erro: ' + msg;
-                        el.className = 'text-red-500 font-bold text-xs';
-                    }
-                });
-
-                Game.peer.on('disconnected', () => {
-                     console.log("Peer Disconnected from Server");
-                     if(Game.peer && !Game.peer.destroyed) Game.peer.reconnect();
+                    showToast("Erro de conexão.", 'error');
                 });
             },
 
-            // HOST LOGIC
             handleHostConnection: (conn) => {
                 Game.connections.push(conn);
-                conn.on('open', () => {
-                    console.log("Host: New connection");
-                    conn.send({ type: 'REQUEST_INFO' });
-                });
+                conn.on('open', () => { conn.send({ type: 'REQUEST_INFO' }); });
                 conn.on('data', (data) => Game.handleData(data, conn));
-                conn.on('close', () => {
-                    Game.connections = Game.connections.filter(c => c !== conn);
-                });
+                conn.on('close', () => { Game.connections = Game.connections.filter(c => c !== conn); });
             },
 
             broadcast: (data) => {
@@ -352,43 +403,23 @@
                 router.renderHeader();
             },
 
-            // CLIENT LOGIC
             connectToHost: () => {
                 const hostId = Game.ID_PREFIX + Game.state.roomCode;
-                console.log("Connecting to:", hostId);
-                
-                const conn = Game.peer.connect(hostId, {
-                    reliable: true
-                });
-                
+                const conn = Game.peer.connect(hostId, { reliable: true });
                 conn.on('open', () => {
-                    console.log("Client: Connected to Host");
                     showToast("Conectado à sala!");
                     Game.hostConn = conn;
-                    // Client does NOT save local state anymore to force fresh start
-                    // State comes from Host sync
                 });
-
                 conn.on('data', (data) => Game.handleData(data));
-                
                 conn.on('close', () => {
                     showToast("Desconectado do Host", 'error');
                     setTimeout(() => Game.exitGame(), 3000);
                 });
-
-                setTimeout(() => {
-                    if(!Game.hostConn || !Game.hostConn.open) {
-                        // showToast("Host demora a responder...", 'warning');
-                    }
-                }, 5000);
             },
 
             sendAction: (type, payload) => {
                 const finalPayload = { ...payload };
-                if (!finalPayload.senderId) {
-                    finalPayload.senderId = Game.state.myId;
-                }
-
+                if (!finalPayload.senderId) finalPayload.senderId = Game.state.myId;
                 if (Game.state.isHost) {
                     Game.handleAction(type, finalPayload, Game.state.myId);
                 } else if (Game.hostConn) {
@@ -396,63 +427,43 @@
                 }
             },
 
-            // COMMON DATA HANDLER
             handleData: (data, connSource = null) => {
                 if (data.type === 'SYNC_STATE') {
                     const myId = Game.state.myId;
                     const isHost = Game.state.isHost;
                     const wasAtHome = router.current === 'home';
-
                     Game.state = data.payload;
                     Game.state.myId = myId;
                     Game.state.isHost = isHost;
-                    // Note: Client does NOT saveLocal() here to avoid persistence on reload
                     if(isHost) Game.saveLocal(); 
 
                     if (wasAtHome) {
-                        // Check if my ID is in the player list (synced from host)
                         const amIInList = Game.state.players.some(p => p.id === myId);
                         if (amIInList) {
-                            if (Game.state.phase === 'lobby') {
-                                router.navigate('lobby');
-                            } else {
-                                router.navigate('country');
-                            }
+                            if (Game.state.phase === 'lobby') router.navigate('lobby');
+                            else router.navigate('country');
                         }
                     }
-
                     router.renderCurrent();
                     router.renderHeader();
                     return;
                 }
-                
                 if (data.type === 'GAME_IN_PROGRESS') {
                     router.navigate('spectator');
                     return;
                 }
-
                 if (Game.state.isHost) {
-                    if (data.type === 'ACTION') {
-                        Game.handleAction(data.actionType, data.payload, null);
-                    }
+                    if (data.type === 'ACTION') Game.handleAction(data.actionType, data.payload, null);
                     if (data.type === 'JOIN_INFO') {
                         const incomingName = data.payload.name;
                         const incomingId = data.payload.id;
-                        
-                        // Check if player exists by NAME
                         const existingPlayerIndex = Game.state.players.findIndex(p => p.name === incomingName);
-                        
                         if (existingPlayerIndex !== -1) {
-                            // REJOIN LOGIC
-                            console.log(`${incomingName} is rejoining.`);
-                            // Update the ID to the new connection ID
                             Game.state.players[existingPlayerIndex].id = incomingId;
                             showToast(`${incomingName} reconectou!`);
                             Game.syncState();
                         } else {
-                            // NEW PLAYER LOGIC
                             if (Game.state.phase === 'game') {
-                                // Reject if game started and name not found
                                 connSource.send({ type: 'GAME_IN_PROGRESS' });
                             } else {
                                 const newPlayer = Game.createPlayerStruct(incomingId, incomingName);
@@ -470,39 +481,47 @@
                 }
             },
 
-            // GAME LOGIC
             handleAction: (type, payload, localSenderId) => {
                 if (!Game.state.isHost) return;
-
                 const senderId = payload.senderId || localSenderId;
                 const player = Game.state.players.find(p => p.id === senderId);
-
-                if (!player && type !== 'JOIN_INFO') {
-                     console.warn("Action received from unknown player:", senderId);
-                     return;
-                }
+                if (!player && type !== 'JOIN_INFO') return;
 
                 switch (type) {
-                    case 'START_MATCH':
-                        Game.startMatchLogic();
-                        break;
+                    case 'START_MATCH': Game.startMatchLogic(); break;
                     case 'CHOOSE_GOV':
                         if(player) {
                             const style = ALL_GOV_STYLES.find(s => s.id === payload.styleId);
                             player.style = style;
+                            
+                            // 1. Aplica os Status Imediatos
                             if (style.bonus.eco) player.stats.eco += style.bonus.eco;
                             if (style.bonus.pop) player.stats.pop += style.bonus.pop;
                             if (style.bonus.stab) player.stats.stab += style.bonus.stab;
                             ['eco','pop','stab'].forEach(k => player.stats[k] = Math.max(0, Math.min(100, player.stats[k])));
+
+                            const effects = Object.entries(style.bonus)
+                                .map(([k, v]) => `${k.toUpperCase()} ${v > 0 ? '+' : ''}${v}`)
+                                .join(', ');
+
+                            const detailMsg = `O governo anunciou oficialmente a adoção do modelo ${style.name}.\n\nBônus Ativos:\n${effects}`;
+
+                            Game.addNewsLogic(
+                                `${player.country.name} instituiu: ${style.name}. <i class="text-gold-400 text-xs font-bold">(${effects})</i>`,
+                                'real',
+                                null,
+                                true, // MAJOR EVENT
+                                detailMsg
+                            );
                         }
                         break;
                     case 'TOGGLE_VISIBILITY':
                         if(player && !player.visibilityChangedThisRound) {
                             player.visibility = player.visibility === 'public' ? 'anon' : 'public';
                             player.visibilityChangedThisRound = true;
-                            if (player.visibility === 'anon' && player.style.id !== 'shadow') {
+                            if (player.visibility === 'anon' && player.style && player.style.id !== 'shadow') {
                                 player.stats.pop -= 5;
-                                Game.addNewsLogic(`Rumores sobre falta de transparência em ${player.country.name}.`, 'real');
+                                Game.addNewsLogic(`Rumores sobre falta de transparência em ${player.country.name}.`, 'real', null, false, `O governo de ${player.country.name} decidiu ocultar seus dados econômicos e sociais, gerando desconfiança.`);
                             }
                         }
                         break;
@@ -511,78 +530,211 @@
                             const decision = player.currentDilemma;
                             const outcome = payload.choiceIndex === 0 ? decision.yes : decision.no;
                             
+                            // Check SECRET OBJECTIVE (Veto type)
+                            if (payload.choiceIndex === 1) Game.checkObjectiveProgress(player, 'veto');
+
+                            player.decisionHistory.push(decision.id);
+
                             if (outcome.effect.eco) player.stats.eco += outcome.effect.eco;
                             if (outcome.effect.pop) player.stats.pop += outcome.effect.pop;
                             if (outcome.effect.stab) player.stats.stab += outcome.effect.stab;
+                            
+                            if (outcome.effect.influence) player.influence += outcome.effect.influence;
+
+                            if (player.style) {
+                                if (player.style.id === 'technocrat' && outcome.effect.eco > 0) player.stats.eco += 5; 
+                                if (player.style.id === 'participatory' && outcome.effect.pop > 0) player.stats.pop += 5;
+                            }
+                            
+                            // BADGE LOGIC
+                            if(outcome.badge) {
+                                player.badges.push(outcome.badge);
+                                // Epic Events are always major
+                                Game.addNewsLogic(`NOVA MARCA: ${player.country.name} agora é reconhecido como ${outcome.badge.label}!`, 'real', null, true, `Conquista Histórica!\n\n${player.country.name} recebeu a marca: ${outcome.badge.label}.\n\n${outcome.badge.description}`);
+                            }
+
+                            // TRAIT LOGIC
+                            if(outcome.trait) {
+                                if (!player.traits.some(t => t.name === outcome.trait.name)) {
+                                    player.traits.push(outcome.trait);
+                                    Game.addNewsLogic(`EVOLUÇÃO: O governo de ${player.country.name} desenvolveu o traço "${outcome.trait.name}".`, 'real', null, false, `Evolução Política\n\nO governo adquiriu o traço: "${outcome.trait.name}".\n\n${outcome.trait.desc}`);
+                                }
+                            }
+
                             ['eco','pop','stab'].forEach(k => player.stats[k] = Math.max(0, Math.min(100, player.stats[k])));
-                            
                             const actionText = payload.choiceIndex === 0 ? "aprovou" : "rejeitou";
-                            Game.addNewsLogic(`${player.country.name} ${actionText}: ${decision.text}`, 'real');
                             
-                            // 3 DECISIONS LOGIC
+                            // Global Effect Application
+                            let globalDetailText = "";
+                            if (outcome.globalEffect) {
+                                Game.state.players.forEach(otherPlayer => {
+                                    if (otherPlayer.id !== player.id) {
+                                        if(outcome.globalEffect.eco) otherPlayer.stats.eco += outcome.globalEffect.eco;
+                                        if(outcome.globalEffect.pop) otherPlayer.stats.pop += outcome.globalEffect.pop;
+                                        if(outcome.globalEffect.stab) otherPlayer.stats.stab += outcome.globalEffect.stab;
+                                        
+                                        ['eco','pop','stab'].forEach(k => otherPlayer.stats[k] = Math.max(0, Math.min(100, otherPlayer.stats[k])));
+                                    }
+                                });
+                                globalDetailText = `\n\nIMPACTO GLOBAL:\n${outcome.globalEffect.desc || "Ações extremas afetaram os países vizinhos."}`;
+                            }
+
+                            // Generate Detailed Message for Standard & Epic
+                            const effectText = Object.entries(outcome.effect).map(([k,v]) => `${k.toUpperCase()} ${v>0?'+':''}${v}`).join(', ');
+                            const detailMessage = `Pauta: ${decision.text}\n\nDecisão Presidencial: ${actionText.toUpperCase()}\n\nResultado: ${outcome.desc}\n\nEfeitos Locais: ${effectText}${globalDetailText}`;
+
+                            // Different News for Epic
+                            if (decision.isEpic) {
+                                Game.addNewsLogic(
+                                    `EVENTO ÉPICO: ${player.country.name} ${actionText} a oportunidade histórica: ${decision.text.substring(0,30)}...`, 
+                                    'real', 
+                                    null, 
+                                    true, 
+                                    detailMessage // Pass details
+                                );
+                            } else {
+                                Game.addNewsLogic(`${player.country.name} ${actionText}: ${decision.text}`, 'real', null, false, detailMessage);
+                            }
+                            
                             player.currentDilemma = null;
+
+                            if (outcome.trigger) {
+                                const triggeredDecision = DECISIONS_POOL.find(d => d.id === outcome.trigger);
+                                if (triggeredDecision) {
+                                    player.dilemmaQueue.unshift(triggeredDecision);
+                                    Game.addNewsLogic(`Desdobramento imediato em ${player.country.name}: ${triggeredDecision.text}`, 'real', null, true, `Alerta de Crise!\n\nUma decisão anterior gerou consequências imediatas:\n"${triggeredDecision.text}"`); // MAJOR IF CONSEQUENCE
+                                }
+                            }
+
                             if (player.dilemmaQueue && player.dilemmaQueue.length > 0) {
                                 player.currentDilemma = player.dilemmaQueue.shift();
                             } else {
                                 player.hasActed = true;
                                 const allActed = Game.state.players.every(p => p.hasActed);
-                                if(allActed) {
-                                    setTimeout(() => Game.checkGamePhaseLogic(), 2000);
+                                if(allActed) setTimeout(() => Game.checkGamePhaseLogic(), 2000);
+                            }
+                        }
+                        break;
+                    case 'BUY_PROJECT':
+                        if(player) {
+                             if(player.projectsBoughtThisRound >= 2) return;
+
+                             const project = ALL_OPTIONAL_PROJECTS.find(p => p.id === payload.projectId);
+                             if(project) {
+                                let canAfford = true;
+                                if(project.cost.eco && player.stats.eco < project.cost.eco) canAfford = false;
+                                if(project.cost.pop && player.stats.pop < project.cost.pop) canAfford = false;
+                                if(project.cost.stab && player.stats.stab < project.cost.stab) canAfford = false;
+
+                                if(canAfford) {
+                                    if(project.cost.eco) player.stats.eco -= project.cost.eco;
+                                    if(project.cost.pop) player.stats.pop -= project.cost.pop;
+                                    if(project.cost.stab) player.stats.stab -= project.cost.stab;
+                                    
+                                    player.activeProjects.push({ ...project, roundsLeft: project.duration });
+                                    player.projectsBoughtThisRound++;
+                                    
+                                    const revenueText = Object.entries(project.revenue).map(([k,v]) => `+${v} ${k.toUpperCase()}`).join(', ');
+                                    const costText = Object.entries(project.cost).map(([k,v]) => `-${v} ${k.toUpperCase()}`).join(', ');
+                                    const detailMsg = `Projeto: ${project.name}\n\nO governo iniciou obras de infraestrutura e desenvolvimento.\n\nCusto: ${costText}\nRetorno Esperado: ${revenueText} por rodada durante ${project.duration} semestres.`;
+
+                                    Game.addNewsLogic(`${player.country.name} iniciou projeto: ${project.name}`, 'real', null, false, detailMsg);
+                                    
+                                    // Check Secret Objective
+                                    Game.checkObjectiveProgress(player, 'project');
+                                }
+                             }
+                        }
+                        break;
+                    case 'REQUEST_AID':
+                        if (player) {
+                            const statType = payload.targetStat;
+                            // Only allow if in crisis
+                            if (player.stats[statType] < 20 || Object.values(player.stats).some(v => v < 20)) {
+                                player.activeAidRequest = { type: statType, round: Game.state.round };
+                                let statName = statType === 'eco' ? "Economia" : statType === 'pop' ? "Popularidade" : "Estabilidade";
+                                Game.addNewsLogic(`SOS: ${player.country.name} pede ajuda internacional para restaurar sua ${statName}!`, 'real', null, true, `Crise Humanitária!\n\nO governo de ${player.country.name} solicitou formalmente ajuda internacional para combater o colapso de sua ${statName}.`); // MAJOR
+                            }
+                        }
+                        break;
+                    case 'SEND_AID':
+                        if (player) {
+                            const target = Game.state.players.find(p => p.id === payload.targetId);
+                            if (target && target.activeAidRequest) {
+                                // Cost to helper
+                                const aidType = target.activeAidRequest.type;
+                                
+                                // Simplified cost: Helper loses 10 of that stat (or mixed) to give 20.
+                                // If aidType is 'eco', helper loses eco.
+                                // Helper gains INFLUENCE.
+                                
+                                let cost = 10;
+                                if (player.stats[aidType] >= 15) {
+                                    player.stats[aidType] -= cost;
+                                    player.influence += 15; // Reward
+                                    
+                                    target.stats[aidType] += 20;
+                                    target.activeAidRequest = null; // Clear request
+                                    
+                                    ['eco','pop','stab'].forEach(k => {
+                                        player.stats[k] = Math.max(0, Math.min(100, player.stats[k]));
+                                        target.stats[k] = Math.max(0, Math.min(100, target.stats[k]));
+                                    });
+
+                                    Game.addNewsLogic(`ALIANÇA: ${player.country.name} enviou ajuda humanitária e econômica para ${target.country.name}!`, 'real', null, true, `Cooperação Internacional\n\n${player.country.name} enviou recursos vitais para ${target.country.name}, fortalecendo laços diplomáticos e salvando o país vizinho do colapso.`); // MAJOR
+                                    
+                                    // Check Secret Objective
+                                    Game.checkObjectiveProgress(player, 'aid');
                                 }
                             }
                         }
                         break;
                     case 'FAKE_NEWS':
                         if(player) {
-                             Game.addNewsLogic(`Vazamento: ${payload.headline} em ${payload.targetName}!`, 'fake', player.id);
+                            const target = Game.state.players.find(p => p.id === payload.targetId);
+                            if (target && target.style && target.style.id === 'isolationist' && target.id !== player.id) {
+                                Game.addNewsLogic(`Tentativa de interferência externa em ${target.country.name} bloqueada pelo regime Isolacionista.`, 'real', null, false, `Ataque Falhou.\n\nO firewall de informação do governo isolacionista impediu a propagação de rumores.`);
+                            } else {
+                                Game.addNewsLogic(`Vazamento: ${payload.headline} em ${payload.targetName}!`, 'fake', player.id, true, `Relatório de Inteligência:\n\nEste rumor está circulando nas redes sociais de ${payload.targetName}.\nConteúdo: "${payload.headline}"\n\nImpacto: Desestabilização da confiança pública.`); // MAJOR
+                            }
                         }
                         break;
                     case 'DEPLOY_SPY':
-                        if(Math.random() > 0.5) {
-                            // Success logic could return data to private user
-                        } else {
+                        if(Math.random() <= 0.5) {
                             const target = Game.state.players.find(p => p.id === payload.targetId);
-                            Game.addNewsLogic(`Espião estrangeiro capturado em ${target.country.name}!`, 'real');
-                            target.stats.stab -= 5;
+                            if (target && target.style && target.style.id === 'state') {
+                                 Game.addNewsLogic(`Espião capturado pela inteligência estatal de ${target.country.name}!`, 'real', null, false, `Incidente Diplomático.\n\nUm agente estrangeiro foi detido tentando infiltrar o governo de ${target.country.name}.`);
+                            } else {
+                                Game.addNewsLogic(`Espião estrangeiro capturado em ${target.country.name}!`, 'real', null, false, `Falha de Segurança.\n\nServiços de contra-inteligência detectaram e neutralizaram um espião em ${target.country.name}.`);
+                                target.stats.stab -= 5;
+                            }
                         }
                         break;
-                    case 'END_SPEECH':
-                         Game.debateNextSpeakerLogic();
-                         break;
+                    case 'END_SPEECH': Game.debateNextSpeakerLogic(); break;
                 }
-
                 Game.syncState();
             },
 
-            // --- LOBBY & SETUP ---
-            
             createRoom: (name, forceNewCode = false) => {
                 localStorage.setItem('p_name', name);
-                
                 const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
                 let code = "";
                 for(let i=0; i<5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-                
                 const myId = 'p-' + Date.now();
-                
                 Game.state.roomCode = code;
                 Game.state.myId = myId;
                 Game.state.isHost = true;
                 Game.state.players = [Game.createPlayerStruct(myId, name)];
-                
-                // Initialize Peer with new code
                 Game.initPeer(code, forceNewCode);
             },
 
             joinRoom: (name, code) => {
                 localStorage.setItem('p_name', name);
                 code = code.toUpperCase().trim();
-                
                 const myId = 'p-' + Date.now() + Math.random().toString(36).substr(2, 5);
                 Game.state.roomCode = code;
                 Game.state.myId = myId;
                 Game.state.isHost = false;
-                
                 const randomClientId = 'client-' + Math.random().toString(36).substr(2, 9);
                 Game.initPeer(randomClientId);
             },
@@ -590,15 +742,16 @@
             createPlayerStruct: (id, name) => {
                 return {
                     id, name, 
-                    isHuman: true,
-                    country: null,
-                    style: null,
+                    isHuman: true, country: null, style: null,
                     stats: { eco: 50, stab: 50, pop: 50 },
-                    visibility: 'public',
-                    hasActed: false,
-                    visibilityChangedThisRound: false,
-                    currentDilemma: null,
-                    dilemmaQueue: []
+                    influence: 0, 
+                    badges: [], // Legacy System
+                    traits: [], // Personality System
+                    secretObjective: null, // New System
+                    activeAidRequest: null, // { type: 'eco'|'pop'|'stab', round: 1 }
+                    visibility: 'public', hasActed: false, visibilityChangedThisRound: false,
+                    currentDilemma: null, dilemmaQueue: [], activeProjects: [],
+                    projectsBoughtThisRound: 0, availableProjects: [], decisionHistory: []
                 };
             },
 
@@ -608,72 +761,213 @@
                 location.reload();
             },
 
-            saveLocal: () => {
-                localStorage.setItem('presidentes_game', JSON.stringify(Game.state));
-            },
-
+            saveLocal: () => { localStorage.setItem('presidentes_game', JSON.stringify(Game.state)); },
             loadLocal: () => {
                 const data = localStorage.getItem('presidentes_game');
-                if(data) { 
-                    try {
-                        Game.state = JSON.parse(data);
-                        return true;
-                    } catch(e) {
-                        return false;
-                    }
-                } 
+                if(data) { try { Game.state = JSON.parse(data); return true; } catch(e) { return false; } } 
                 return false; 
             },
 
-            // --- LOGIC HELPERS ---
-
-            getRandomDilemmas: (count) => {
+            // Anti-repetition logic with Pool Recycling
+            getRandomDilemmas: (player, count) => {
                 const selected = [];
-                for(let i=0; i<count; i++) {
-                    selected.push(DECISIONS_POOL[Math.floor(Math.random() * DECISIONS_POOL.length)]);
+                const history = player.decisionHistory;
+                
+                // 1. CRITICAL CHECKS (Highest Priority)
+                const crisisPool = DECISIONS_POOL.filter(d => 
+                    d.condition && 
+                    d.condition(player) && 
+                    !history.includes(d.id)
+                );
+                
+                if (crisisPool.length > 0) {
+                    selected.push(crisisPool[Math.floor(Math.random() * crisisPool.length)]);
                 }
+
+                // Helper to fetch pool
+                const fetchPool = (ignoreHistory) => {
+                    return DECISIONS_POOL.filter(d => 
+                        !d.isConsequence && 
+                        !d.condition && 
+                        (ignoreHistory || !history.includes(d.id)) &&
+                        !selected.some(s => s.id === d.id)
+                    );
+                };
+
+                let pool = fetchPool(false); // Try without history first
+
+                // If not enough, allow recycling history
+                if (pool.length < (count - selected.length)) {
+                    pool = fetchPool(true);
+                }
+
+                while(selected.length < count && pool.length > 0) {
+                    // Weigh specific vs general
+                    const specific = pool.filter(d => d.countrySpecific && d.countrySpecific.includes(player.country.id));
+                    const general = pool.filter(d => !d.countrySpecific);
+                    
+                    let candidatePool = general;
+                    // Boost specific chance or fallback if general empty
+                    if ((specific.length > 0 && Math.random() < 0.4) || general.length === 0) {
+                        candidatePool = specific.length > 0 ? specific : general;
+                    }
+
+                    if (candidatePool.length === 0) break; // Should not happen if pool > 0
+
+                    const pickIndex = Math.floor(Math.random() * candidatePool.length);
+                    const pick = candidatePool[pickIndex];
+                    
+                    selected.push(pick);
+                    // Remove from local pool to avoid dupes in this batch
+                    pool = pool.filter(p => p.id !== pick.id);
+                }
+
                 return selected;
+            },
+
+            getRandomProjects: (count) => {
+                const shuffled = [...ALL_OPTIONAL_PROJECTS].sort(() => 0.5 - Math.random());
+                return shuffled.slice(0, count);
             },
 
             startMatchLogic: () => {
                 const shuffledCountries = [...COUNTRIES].sort(() => 0.5 - Math.random());
-                Game.state.players.forEach((p, i) => {
-                    p.country = shuffledCountries[i % shuffledCountries.length];
-                });
-                
-                // 3 Decisions per round logic
+                Game.state.players.forEach((p, i) => { p.country = shuffledCountries[i % shuffledCountries.length]; });
                 Game.state.players.forEach(p => {
-                     p.dilemmaQueue = Game.getRandomDilemmas(3);
+                     p.dilemmaQueue = Game.getRandomDilemmas(p, 3);
                      p.currentDilemma = p.dilemmaQueue.shift();
+                     p.availableProjects = Game.getRandomProjects(4);
+                     p.projectsBoughtThisRound = 0;
+                     p.influence = 0;
+                     p.badges = [];
+                     p.traits = [];
+                     
+                     // Assign Secret Objective
+                     const obj = SECRET_OBJECTIVES[Math.floor(Math.random() * SECRET_OBJECTIVES.length)];
+                     p.secretObjective = { ...obj, progress: 0, completed: false };
                 });
-
                 Game.state.phase = 'game';
                 Game.syncState();
             },
 
-            addNewsLogic: (text, type, sourceId = null) => {
-                Game.state.newsFeed.unshift({ 
-                    id: Date.now() + Math.random(), text, type, sourceId, round: Game.state.round 
-                });
+            checkObjectiveProgress: (player, actionType) => {
+                if (!player.secretObjective || player.secretObjective.completed) return;
+                
+                const obj = player.secretObjective;
+                let didProgress = false;
+
+                if (obj.type === actionType) {
+                    if (actionType === 'influence') {
+                        if (player.influence >= obj.target) didProgress = true;
+                    } else {
+                        obj.progress++;
+                        if (obj.progress >= obj.target) didProgress = true;
+                    }
+                }
+
+                if (didProgress && (obj.type === 'influence' ? true : obj.progress >= obj.target)) {
+                    obj.completed = true;
+                    obj.progress = obj.target; // Cap
+                    
+                    // Apply Reward
+                    if (obj.reward.type === 'inf') player.influence += obj.reward.val;
+                    if (obj.reward.type === 'stat') player.stats[obj.reward.stat] += obj.reward.val;
+                    
+                    ['eco','pop','stab'].forEach(k => player.stats[k] = Math.max(0, Math.min(100, player.stats[k])));
+
+                    Game.addNewsLogic(`REVELAÇÃO: ${player.country.name} completou seu objetivo secreto: "${obj.title}"!`, 'real', null, true, `Missão Cumprida!\n\n${player.country.name} completou o objetivo secreto "${obj.title}".\n\nRecompensa: ${obj.reward.text}`);
+                    showToast(`Objetivo "${obj.title}" concluído! Recompensa recebida.`);
+                }
+            },
+
+            addNewsLogic: (text, type, sourceId = null, isMajor = false, details = null) => {
+                Game.state.newsFeed.unshift({ id: Date.now() + Math.random(), text, type, sourceId, round: Game.state.round, isMajor, details });
             },
 
             checkGamePhaseLogic: () => {
-                if (Game.state.round === 4 || Game.state.round === 8) {
-                    Game.startDebateLogic();
-                } else {
-                    Game.nextRoundLogic();
-                }
+                if (Game.state.round === 4 || Game.state.round === 8) Game.startDebateLogic();
+                else Game.nextRoundLogic();
             },
 
             nextRoundLogic: () => {
                 Game.state.round++;
+                
+                // Process Active Projects & Traits
                 Game.state.players.forEach(p => {
-                    p.hasActed = false;
-                    p.visibilityChangedThisRound = false;
-                    p.dilemmaQueue = Game.getRandomDilemmas(3);
-                    p.currentDilemma = p.dilemmaQueue.shift();
+                    // Projects
+                    p.activeProjects.forEach(proj => {
+                        if(proj.revenue.eco) p.stats.eco += proj.revenue.eco;
+                        if(proj.revenue.pop) p.stats.pop += proj.revenue.pop;
+                        if(proj.revenue.stab) p.stats.stab += proj.revenue.stab;
+                        proj.roundsLeft--;
+                    });
+                    
+                    const finished = p.activeProjects.filter(pr => pr.roundsLeft <= 0);
+                    if(finished.length > 0) {
+                        Game.addNewsLogic(`Projetos concluídos em ${p.country.name}: ${finished.map(f=>f.name).join(', ')}`, 'real', null, false, `Obras Finalizadas.\n\nOs seguintes projetos foram entregues com sucesso: ${finished.map(f=>f.name).join(', ')}.`);
+                    }
+                    p.activeProjects = p.activeProjects.filter(pr => pr.roundsLeft > 0);
+
+                    // Passive Traits Bonus
+                    p.traits.forEach(t => {
+                         if(t.bonus) {
+                            if(t.bonus.eco) p.stats.eco += t.bonus.eco;
+                            if(t.bonus.pop) p.stats.pop += t.bonus.pop;
+                            if(t.bonus.stab) p.stats.stab += t.bonus.stab;
+                         }
+                    });
+
+                    // Passive Influence Bonus
+                    if (p.influence > 0) {
+                         const bonus = Math.floor(p.influence / 10);
+                         if (bonus > 0) {
+                             p.stats.pop += bonus;
+                             p.stats.stab += bonus;
+                         }
+                    }
+                    
+                    ['eco','pop','stab'].forEach(k => p.stats[k] = Math.max(0, Math.min(100, p.stats[k])));
+                    
+                    // Check Secret Objective (Influence type usually checks every round)
+                    Game.checkObjectiveProgress(p, 'influence');
                 });
-                showToast(`Início do Semestre ${Game.state.round}`);
+
+                Game.state.players.forEach(p => {
+                    p.hasActed = false; p.visibilityChangedThisRound = false;
+                    
+                    // Epic Event Roll (8% Chance)
+                    let epicEvent = null;
+                    if (Math.random() < 0.08) {
+                        // Avoid repeats if already in history
+                        const availableEpics = EPIC_EVENTS_POOL.filter(e => !p.decisionHistory.includes(e.id));
+                        if (availableEpics.length > 0) {
+                            epicEvent = availableEpics[Math.floor(Math.random() * availableEpics.length)];
+                        }
+                    }
+
+                    p.dilemmaQueue = Game.getRandomDilemmas(p, 3);
+                    
+                    // Inject Epic Event at start of queue if triggered
+                    if (epicEvent) {
+                        p.dilemmaQueue.unshift(epicEvent);
+                    }
+
+                    // FALLBACK: Always ensure there is a dilemma
+                    if (p.dilemmaQueue.length > 0) {
+                        p.currentDilemma = p.dilemmaQueue.shift();
+                    } else {
+                        p.currentDilemma = {
+                            id: 'fallback_' + Game.state.round + '_' + p.id,
+                            text: "Calmaria Política: Sem crises urgentes, o governo deve decidir onde focar a gestão de rotina.",
+                            yes: { desc: "Manter Ordem", effect: { stab: 5 } },
+                            no: { desc: "Ajuste Econômico", effect: { eco: 5 } }
+                        };
+                    }
+
+                    p.availableProjects = Game.getRandomProjects(4); // Rotate projects
+                    p.projectsBoughtThisRound = 0; // Reset limit
+                });
+                showToast(`Início do Semestre ${Game.state.round}. Novos projetos disponíveis!`);
                 Game.syncState();
             },
 
@@ -685,18 +979,14 @@
 
             debateNextSpeakerLogic: () => {
                 if (Game.state.debateQueue.length === 0) {
-                    Game.state.isDebating = false;
-                    Game.state.currentSpeakerId = null;
-                    Game.nextRoundLogic();
-                    return;
+                    Game.state.isDebating = false; Game.state.currentSpeakerId = null;
+                    Game.nextRoundLogic(); return;
                 }
                 const nextSpeaker = Game.state.debateQueue.shift();
                 Game.state.currentSpeakerId = nextSpeaker.id;
                 Game.state.debateStartTime = Date.now(); 
                 Game.syncState();
             },
-
-            // --- UI ACTIONS ---
 
             getMyPlayer: () => Game.state.players.find(p => p.id === Game.state.myId),
 
@@ -706,36 +996,70 @@
                 showToast("Governo Confirmado. Aguarde.");
             },
             
-            uiToggleVisibility: () => {
-                Game.sendAction('TOGGLE_VISIBILITY', {});
-            },
+            uiToggleVisibility: () => { Game.sendAction('TOGGLE_VISIBILITY', {}); },
 
             uiResolveDilemma: (choiceIndex) => {
-                const me = Game.getMyPlayer();
-                Game.sendAction('RESOLVE_DILEMMA', { choiceIndex, senderId: me.id });
                 const container = document.getElementById('decision-card-container');
                 if(container) container.innerHTML = '<div class="text-center p-10 animate-pulse">Enviando...</div>';
+                
+                setTimeout(() => {
+                    const me = Game.getMyPlayer();
+                    Game.sendAction('RESOLVE_DILEMMA', { choiceIndex, senderId: me.id });
+                }, 10);
+            },
+
+            uiBuyProject: (projectId) => {
+                 Game.sendAction('BUY_PROJECT', { projectId });
             },
 
             uiCreateFakeNews: (targetId, targetName, headline) => {
-                Game.sendAction('FAKE_NEWS', { targetId, targetName, headline });
-                closeModal();
+                Game.sendAction('FAKE_NEWS', { targetId, targetName, headline }); closeModal();
             },
 
             uiDeploySpy: (targetId, sector) => {
-                Game.sendAction('DEPLOY_SPY', { targetId, sector });
-                closeModal();
-                showToast("Espião enviado.");
+                Game.sendAction('DEPLOY_SPY', { targetId, sector }); closeModal(); showToast("Espião enviado.");
             },
 
-            endSpeech: () => {
-                 Game.sendAction('END_SPEECH', { senderId: Game.state.myId });
-            }
+            uiRequestAid: (targetStat) => {
+                 Game.sendAction('REQUEST_AID', { targetStat });
+                 showToast("Pedido de ajuda enviado à ONU.");
+                 router.renderCurrent();
+            },
+
+            uiSendAid: (targetId) => {
+                 Game.sendAction('SEND_AID', { targetId });
+                 closeModal();
+                 showToast("Ajuda enviada! Influência ganha.");
+            },
+            
+            uiSwitchNewsTab: (tab) => {
+                window.currentNewsTab = tab;
+                router.renderCurrent();
+            },
+
+            uiShowItemDetails: (title, description, icon, colorClass) => {
+                 const el = document.createElement('div');
+                 el.className = 'fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in px-4';
+                 el.innerHTML = `
+                    <div class="bg-slate-900 border border-slate-600 p-6 rounded-2xl max-w-xs text-center shadow-2xl transform scale-100 relative">
+                        <button onclick="this.parentElement.parentElement.remove()" class="absolute top-2 right-2 text-slate-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        <i data-lucide="${icon}" class="w-12 h-12 mx-auto mb-4 ${colorClass}"></i>
+                        <h3 class="text-xl font-bold text-white mb-2">${title}</h3>
+                        <p class="text-slate-300 text-sm leading-relaxed whitespace-pre-line text-left">${description}</p>
+                        <button onclick="this.parentElement.parentElement.remove()" class="mt-6 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg w-full">Entendido</button>
+                    </div>
+                 `;
+                 document.body.appendChild(el);
+                 lucide.createIcons();
+            },
+
+            endSpeech: () => { Game.sendAction('END_SPEECH', { senderId: Game.state.myId }); }
         };
 
         // --- ROUTER & RENDERERS ---
         const router = {
             current: 'home',
+            lastRendered: null,
             navigate: (view) => {
                 router.current = view;
                 router.renderHeader();
@@ -743,33 +1067,29 @@
             },
             renderCurrent: () => {
                 const container = document.getElementById('app-container');
-                container.innerHTML = '';
                 
-                if (router.current === 'spectator') {
-                    renderSpectator(container);
-                    return;
+                if (router.lastRendered !== router.current) {
+                    container.innerHTML = '';
+                    router.lastRendered = router.current;
                 }
+                
+                window.setText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
 
-                if (Game.state.phase === 'game' && router.current === 'lobby') {
-                    router.navigate('country');
-                    return;
-                }
-
+                if (router.current === 'spectator') { renderSpectator(container); return; }
+                if (Game.state.phase === 'game' && router.current === 'lobby') { router.navigate('country'); return; }
+                
                 if (['home','lobby'].includes(router.current)) {
                      if(router.current === 'home') renderHome(container);
                      if(router.current === 'lobby') renderLobby(container);
-                     lucide.createIcons();
+                     if(router.lastRendered !== router.current) lucide.createIcons();
                      return;
                 }
 
                 const me = Game.getMyPlayer();
                 if (!me) { router.navigate('home'); return; }
 
-                if (Game.state.isDebating) {
-                    renderDebateOverlay();
-                } else {
-                    document.getElementById('debate-overlay').classList.add('hidden');
-                }
+                if (Game.state.isDebating) renderDebateOverlay();
+                else document.getElementById('debate-overlay').classList.add('hidden');
 
                 if (me.country && !me.style && Game.state.phase === 'game') {
                     renderCountry(container);
@@ -794,13 +1114,14 @@
                  const nav = document.getElementById('game-nav');
                  
                  if (Game.state.phase === 'game' && me && me.country) {
+                    if (header.classList.contains('hidden')) header.classList.remove('hidden');
+                    if (nav.classList.contains('hidden')) nav.classList.remove('hidden');
+                    
                     document.getElementById('header-country').innerText = me.country.name;
                     document.getElementById('round-display').innerText = `${Game.state.round}/8`;
-                    header.classList.remove('hidden');
-                    nav.classList.remove('hidden');
                  } else {
-                    header.classList.add('hidden');
-                    nav.classList.add('hidden');
+                    if (!header.classList.contains('hidden')) header.classList.add('hidden');
+                    if (!nav.classList.contains('hidden')) nav.classList.add('hidden');
                  }
                  
                  document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -815,6 +1136,167 @@
 
         // --- VIEWS ---
 
+        function renderDecisions(container) {
+            const me = Game.getMyPlayer();
+            const remaining = (me.dilemmaQueue ? me.dilemmaQueue.length : 0) + (me.currentDilemma ? 1 : 0);
+            
+            // Helpers
+            const formatStats = (effects) => Object.entries(effects).map(([key, val]) => {
+                if(key === 'influence') return `<span class="stat-pill bg-purple-900/50 text-purple-300 border border-purple-500/30"><i data-lucide="crown" class="w-3 h-3"></i>INF +${val}</span>`;
+                let color = val > 0 ? 'text-green-400 bg-green-900/30' : 'text-red-400 bg-red-900/30';
+                let icon = key === 'pop' ? 'users' : key === 'stab' ? 'shield' : 'trending-up';
+                return `<span class="stat-pill ${color}"><i data-lucide="${icon}" class="w-3 h-3"></i>${key.toUpperCase()} ${val > 0 ? '+' : ''}${val}</span>`;
+            }).join('');
+
+            let html = `<div class="p-6 pb-24 space-y-8 animate-fade-in">`;
+            
+            // --- SECTION 1: MANDATORY DECISIONS ---
+            if (me.hasActed) {
+                html += `
+                    <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 text-center">
+                         <div class="w-12 h-12 bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="check" class="w-6 h-6 text-green-500"></i>
+                        </div>
+                        <h2 class="text-white font-bold text-lg">Decisões Completas</h2>
+                        <p class="text-slate-400 text-xs">Aguarde o próximo semestre.</p>
+                    </div>
+                `;
+            } else if (me.currentDilemma) {
+                 const d = me.currentDilemma;
+                 const isEpic = d.isEpic; // Check Epic Flag
+                 
+                 // Dynamic styling based on Epic status
+                 const cardClasses = isEpic 
+                    ? "epic-gradient border-2 border-gold-400/50 shadow-2xl shadow-purple-900/50 animate-float" 
+                    : "bg-gradient-to-br from-slate-800 to-slate-900 border border-gold-500/50 shadow-2xl";
+                 
+                 const titleColor = isEpic ? "text-white" : "text-gold-500";
+                 const titleText = d.isConsequence ? 'CRISE URGENTE' : d.countrySpecific ? 'QUESTÃO NACIONAL' : d.condition ? 'CRISE GOVERNAMENTAL' : isEpic ? 'EVENTO ÉPICO' : 'DECISÃO OBRIGATÓRIA';
+                 const titleIcon = isEpic ? `<i data-lucide="sparkles" class="w-4 h-4 text-gold-300 animate-spin-slow"></i>` : '';
+
+                 const getTriggerHint = (trigger) => trigger ? `<div class="mt-2 text-xs text-gold-500 font-bold flex items-center gap-1 animate-pulse"><i data-lucide="alert-triangle" class="w-3 h-3"></i> CONSEQ. IMEDIATA</div>` : '';
+                 const getBadgeHint = (badge) => badge ? `<div class="mt-1 flex items-center gap-1 text-[10px] ${badge.color}"><i data-lucide="${badge.icon}" class="w-3 h-3"></i> Marca: ${badge.label}</div>` : '';
+                 const getTraitHint = (trait) => trait ? `<div class="mt-1 flex items-center gap-1 text-[10px] text-purple-400"><i data-lucide="brain-circuit" class="w-3 h-3"></i> Traço: ${trait.name}</div>` : '';
+
+                 html += `
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-white">Gabinete Presidencial</h2>
+                            <span class="bg-red-600 text-white text-xs px-2 py-1 rounded-full font-bold">Pendente: ${remaining}</span>
+                        </div>
+                        <div id="decision-card-container" class="${cardClasses} rounded-2xl p-1 relative overflow-hidden animate-slide-up">
+                            ${isEpic ? '<div class="absolute inset-0 bg-[url(\'https://www.transparenttextures.com/patterns/cubes.png\')] opacity-10 animate-shimmer"></div>' : '<div class="absolute top-0 left-0 w-full h-1 bg-gold-500 z-10"></div>'}
+                            
+                            <div class="p-5 relative z-10">
+                                <h3 class="${titleColor} font-bold text-xs uppercase mb-2 tracking-wider flex items-center gap-2">${titleIcon} ${titleText}</h3>
+                                <p class="text-lg ${isEpic ? 'text-white font-black drop-shadow-md epic-text' : 'text-white font-bold'} leading-relaxed mb-6">${d.text}</p>
+                                <div class="space-y-3">
+                                    <button onclick="Game.uiResolveDilemma(0)" class="w-full bg-slate-900/40 border border-white/10 hover:bg-green-900/40 hover:border-green-500 rounded-xl p-3 text-left group transition-all active:scale-95 backdrop-blur-sm">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <span class="text-green-400 font-bold uppercase text-sm">Aprovar</span>
+                                            <div class="flex gap-1 flex-wrap justify-end">${formatStats(d.yes.effect)}</div>
+                                        </div>
+                                        <p class="text-slate-300 text-xs mb-1">${d.yes.desc}</p>
+                                        ${getBadgeHint(d.yes.badge)}
+                                        ${getTraitHint(d.yes.trait)}
+                                        ${getTriggerHint(d.yes.trigger)}
+                                    </button>
+                                    <button onclick="Game.uiResolveDilemma(1)" class="w-full bg-slate-900/40 border border-white/10 hover:bg-red-900/40 hover:border-red-500 rounded-xl p-3 text-left group transition-all active:scale-95 backdrop-blur-sm">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <span class="text-red-400 font-bold uppercase text-sm">Vetar</span>
+                                            <div class="flex gap-1 flex-wrap justify-end">${formatStats(d.no.effect)}</div>
+                                        </div>
+                                        <p class="text-slate-300 text-xs mb-1">${d.no.desc}</p>
+                                        ${getBadgeHint(d.no.badge)}
+                                        ${getTraitHint(d.no.trait)}
+                                        ${getTriggerHint(d.no.trigger)}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                 `;
+            } else {
+                // Fallback for weird state (should be covered by hasActed logic, but safe to have)
+                 html += `
+                    <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 text-center animate-pulse">
+                        <h2 class="text-white font-bold text-lg">Sem Pautas Urgentes</h2>
+                        <p class="text-slate-400 text-xs">O governo segue estável por enquanto.</p>
+                    </div>
+                `;
+            }
+
+            // --- SECTION 2: OPTIONAL PROJECTS ---
+            const limitReached = me.projectsBoughtThisRound >= 2;
+            
+            html += `
+                <div class="pt-4 border-t border-slate-700">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-white">Oportunidades</h2>
+                        <span class="text-xs font-bold ${limitReached ? 'text-red-500' : 'text-green-400'}">
+                            ${me.projectsBoughtThisRound}/2 Investimentos
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-3">
+            `;
+
+            // Active Projects First
+            if (me.activeProjects.length > 0) {
+                 html += me.activeProjects.map(p => `
+                    <div class="bg-slate-800/50 border border-green-500/30 rounded-xl p-3 flex justify-between items-center">
+                        <div>
+                            <h4 class="text-green-400 font-bold text-sm">${p.name}</h4>
+                            <div class="text-[10px] text-slate-400">Renda: ${Object.entries(p.revenue).map(([k,v])=>`+${v} ${k.toUpperCase()}`).join(' ')}</div>
+                        </div>
+                        <span class="text-[10px] bg-green-900 text-green-300 px-2 py-1 rounded font-bold">${p.roundsLeft} sem.</span>
+                    </div>
+                 `).join('');
+            }
+
+            // Available Projects
+            const projectsPool = me.availableProjects || []; // Use rotated pool
+            
+            if (limitReached) {
+                html += `<div class="text-center p-4 bg-slate-800 rounded-xl border border-slate-700 text-slate-500 text-xs italic">Limite de investimentos atingido para este semestre.</div>`;
+            } else {
+                 html += projectsPool.map(proj => {
+                    // Check afford
+                    let canAfford = true;
+                    if(proj.cost.eco && me.stats.eco < proj.cost.eco) canAfford = false;
+                    if(proj.cost.pop && me.stats.pop < proj.cost.pop) canAfford = false;
+                    if(proj.cost.stab && me.stats.stab < proj.cost.stab) canAfford = false;
+                    
+                    const isAlreadyActive = me.activeProjects.some(ap => ap.id === proj.id); // Although rotated, ensuring distinct
+                    if(isAlreadyActive) return '';
+
+                    return `
+                        <div class="bg-slate-800 border border-slate-600 hover:border-gold-500 rounded-xl p-4 transition-all">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-white font-bold text-sm">${proj.name}</h3>
+                                <div class="flex gap-1">
+                                    ${Object.entries(proj.cost).map(([k,v])=>`<span class="text-[10px] font-bold text-red-300 bg-red-900/30 px-1 rounded">-${v} ${k.toUpperCase()}</span>`).join('')}
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-400 mb-3 leading-snug">${proj.desc}</p>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] font-mono text-green-400 bg-green-900/10 px-2 py-1 rounded">
+                                    +${Object.entries(proj.revenue).map(([k,v])=>`${v}${k.toUpperCase()}`).join(' ')} / ${proj.duration} sem
+                                </span>
+                                <button onclick="Game.uiBuyProject('${proj.id}')" ${!canAfford ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${canAfford ? 'bg-gold-600 hover:bg-gold-500 text-white shadow-lg active:scale-95' : 'bg-slate-700 text-slate-500 cursor-not-allowed'} transition-all">
+                                    ${canAfford ? 'Comprar' : 'Sem Verba'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                 }).join('');
+            }
+
+            html += `</div></div></div>`; // Closed grid, section container, and MAIN CONTAINER
+            container.innerHTML = html;
+        }
+
+        // ... (Existing Renderers below are unchanged structurally but included in full file replacement) ...
         function renderDebateOverlay() {
             const overlay = document.getElementById('debate-overlay');
             overlay.classList.remove('hidden');
@@ -867,8 +1349,9 @@
         }
 
         function renderHome(container) {
+            if (document.getElementById('view-home')) return; // Avoid re-render inputs
             container.innerHTML = `
-                <div class="h-full flex flex-col justify-center items-center p-6 bg-dark-900 animate-fade-in">
+                <div id="view-home" class="h-full flex flex-col justify-center items-center p-6 bg-dark-900 animate-fade-in">
                     <div class="mb-10 text-center">
                         <i data-lucide="globe-2" class="w-20 h-20 text-gold-500 mx-auto mb-4"></i>
                         <h1 class="text-3xl font-black text-white tracking-widest uppercase">Presidentes<br><span class="text-gold-500">América do Sul</span></h1>
@@ -895,8 +1378,9 @@
         }
 
         function renderSpectator(container) {
+            if (document.getElementById('view-spectator')) return;
             container.innerHTML = `
-                <div class="h-full flex flex-col justify-center items-center p-6 bg-dark-900 animate-fade-in text-center">
+                <div id="view-spectator" class="h-full flex flex-col justify-center items-center p-6 bg-dark-900 animate-fade-in text-center">
                     <i data-lucide="eye" class="w-16 h-16 text-slate-500 mb-4 animate-pulse"></i>
                     <h2 class="text-2xl font-bold text-white mb-2">Partida em Andamento</h2>
                     <p class="text-slate-400 mb-6">Aguarde o fim da partida para entrar na próxima rodada.</p>
@@ -920,8 +1404,28 @@
         }
 
         function renderLobby(container) {
+            // If already exists, just update the player list content
+            if (document.getElementById('view-lobby')) {
+                const list = document.getElementById('lobby-player-list');
+                if (list) {
+                    list.innerHTML = Game.state.players.map(p => `
+                        <div class="bg-slate-700 p-3 rounded-xl flex items-center gap-3">
+                            <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+                                <i data-lucide="user" class="w-4 h-4 text-white"></i>
+                            </div>
+                            <span class="text-white font-bold">${p.name}</span>
+                            ${p.id === Game.state.myId ? '<span class="text-xs bg-gold-500 text-dark-900 px-2 rounded font-bold">VOCÊ</span>' : ''}
+                            ${Game.state.isHost && p.id === Game.state.players[0].id ? '<span class="text-xs bg-blue-500 text-white px-2 rounded font-bold">HOST</span>' : ''}
+                        </div>
+                    `).join('');
+                }
+                const count = document.getElementById('lobby-count');
+                if(count) count.innerText = `(${Game.state.players.length})`;
+                return;
+            }
+
             container.innerHTML = `
-                <div class="h-full flex flex-col p-6 bg-dark-900 animate-slide-up">
+                <div id="view-lobby" class="h-full flex flex-col p-6 bg-dark-900 animate-slide-up">
                     <div class="text-center mb-8 mt-10">
                         <p id="lobby-status" class="text-slate-400 text-xs animate-pulse mb-2">Conectando ao servidor...</p>
                         <p class="text-slate-400 text-sm uppercase">Código da Sala</p>
@@ -931,10 +1435,10 @@
 
                     <div class="flex-1 bg-slate-800/50 rounded-2xl p-4 border border-slate-700 mb-6">
                         <h3 class="text-white font-bold mb-4 flex items-center gap-2">
-                            <i data-lucide="users" class="w-4 h-4 text-gold-500"></i> Jogadores (${Game.state.players.length})
+                            <i data-lucide="users" class="w-4 h-4 text-gold-500"></i> Jogadores <span id="lobby-count">(${Game.state.players.length})</span>
                         </h3>
-                        <div class="space-y-2">
-                            ${Game.state.players.map(p => `
+                        <div id="lobby-player-list" class="space-y-2">
+                             ${Game.state.players.map(p => `
                                 <div class="bg-slate-700 p-3 rounded-xl flex items-center gap-3">
                                     <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
                                         <i data-lucide="user" class="w-4 h-4 text-white"></i>
@@ -965,15 +1469,12 @@
             const me = Game.getMyPlayer();
             const overlay = document.getElementById('setup-overlay');
             const optionsContainer = document.getElementById('setup-options');
-            
             if (!overlay.classList.contains('hidden')) return;
 
             const options = [...ALL_GOV_STYLES].sort(() => 0.5 - Math.random()).slice(0, 4);
             const prep = ['Argentina', 'Colômbia', 'Venezuela'].includes(me.country.name) ? 'da' : 'do';
-
             document.getElementById('setup-country-pre').innerText = prep;
             document.getElementById('setup-country-name').innerText = me.country.name;
-
             optionsContainer.innerHTML = options.map(opt => `
                 <button onclick="Game.uiConfirmGovernment('${opt.id}')" class="gov-card w-full bg-slate-800 border border-slate-600 hover:border-gold-500 rounded-xl p-4 text-left group relative overflow-hidden">
                     <h3 class="text-gold-500 font-black uppercase text-sm mb-1">${opt.name}</h3>
@@ -987,68 +1488,103 @@
                     </div>
                 </button>
             `).join('');
-
             overlay.classList.remove('hidden');
-        }
-
-        function renderDecisions(container) {
-            const me = Game.getMyPlayer();
-
-            if (me.hasActed) {
-                container.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                        <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 relative">
-                            <i data-lucide="hourglass" class="w-10 h-10 text-gold-500 animate-pulse-slow"></i>
-                        </div>
-                        <h2 class="text-2xl font-bold text-white mb-2">Aguardando...</h2>
-                        <p class="text-slate-400 max-w-xs mx-auto">Decisões finalizadas. Espere o fim do semestre.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            if (me.currentDilemma) {
-                const d = me.currentDilemma;
-                const remaining = (me.dilemmaQueue ? me.dilemmaQueue.length : 0) + 1;
-                
-                container.innerHTML = `
-                    <div class="p-6 space-y-6 animate-fade-in pb-24">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-2xl font-bold text-white">Gabinete</h2>
-                            <span class="bg-slate-700 text-white text-xs px-2 py-1 rounded-full">Restam: ${remaining}</span>
-                        </div>
-                        <div id="decision-card-container" class="bg-gradient-to-br from-slate-800 to-slate-900 border border-gold-500/50 rounded-2xl p-1 shadow-2xl relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-full h-1 bg-gold-500 z-10"></div>
-                            <div class="p-5">
-                                <h3 class="text-gold-500 font-bold text-xs uppercase mb-2 tracking-wider">Decisão Obrigatória</h3>
-                                <p class="text-lg text-white font-bold leading-relaxed mb-6">${d.text}</p>
-                                <div class="space-y-3">
-                                    <button onclick="Game.uiResolveDilemma(0)" class="w-full bg-green-900/30 border border-green-700/50 hover:bg-green-900/50 hover:border-green-500 rounded-xl p-3 text-left group transition-all active:scale-95">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-green-400 font-bold uppercase text-sm">Aprovar</span>
-                                        </div>
-                                        <p class="text-slate-300 text-xs mb-2">${d.yes.desc}</p>
-                                    </button>
-                                    <button onclick="Game.uiResolveDilemma(1)" class="w-full bg-red-900/30 border border-red-700/50 hover:bg-red-900/50 hover:border-red-500 rounded-xl p-3 text-left group transition-all active:scale-95">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-red-400 font-bold uppercase text-sm">Vetar</span>
-                                        </div>
-                                        <p class="text-slate-300 text-xs mb-2">${d.no.desc}</p>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
         }
 
         function renderCountry(container) {
             const me = Game.getMyPlayer();
             if (!me) return;
 
+            // Check Crisis
+            const isInCrisis = me.stats.eco < 20 || me.stats.stab < 20 || me.stats.pop < 20;
+
+            if (document.getElementById('view-country')) {
+                setText('val-eco', me.stats.eco + '%');
+                setText('val-stab', me.stats.stab + '%');
+                setText('val-pop', me.stats.pop + '%');
+                
+                // Toggle Button State
+                const btn = document.getElementById('btn-visibility');
+                if(btn) {
+                     const isPublic = me.visibility === 'public';
+                     const icon = btn.querySelector('i');
+                     if(icon) {
+                        icon.setAttribute('data-lucide', isPublic ? 'eye' : 'eye-off');
+                        icon.setAttribute('class', `w-5 h-5 ${isPublic ? 'text-green-400' : 'text-red-400'}`);
+                     }
+                     const txt = btn.querySelector('.vis-text');
+                     if(txt) txt.innerText = `Dados ${isPublic ? 'Públicos' : 'Anônimos'}`;
+                     const dot = btn.querySelector('.vis-dot');
+                     if(dot) dot.setAttribute('class', `w-2 h-2 rounded-full ${isPublic ? 'bg-green-500' : 'bg-red-500'} vis-dot`);
+                     
+                     if (me.visibilityChangedThisRound) {
+                        btn.classList.add('opacity-50', 'cursor-not-allowed');
+                     } else {
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                     }
+                }
+                
+                // Crisis Button logic
+                const crisisContainer = document.getElementById('crisis-container');
+                if(crisisContainer) {
+                    if (isInCrisis && !me.activeAidRequest) {
+                        crisisContainer.innerHTML = `
+                             <button onclick="Game.uiRequestAid('${me.stats.eco < 20 ? 'eco' : me.stats.stab < 20 ? 'stab' : 'pop'}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl animate-pulse shadow-lg flex justify-center gap-2 items-center">
+                                <i data-lucide="alert-triangle" class="w-5 h-5"></i> PEDIR AJUDA INTERNACIONAL
+                             </button>
+                             <p class="text-xs text-red-400 text-center mt-2">Seus indicadores estão críticos!</p>
+                        `;
+                        lucide.createIcons();
+                    } else if (me.activeAidRequest) {
+                        crisisContainer.innerHTML = `
+                            <div class="bg-red-900/30 border border-red-500/50 p-4 rounded-xl text-center">
+                                <p class="text-red-200 font-bold text-sm flex justify-center items-center gap-2"><i data-lucide="radio" class="w-4 h-4 animate-ping"></i> Pedido de Socorro Enviado</p>
+                                <p class="text-xs text-slate-400 mt-1">Aguardando resposta da ONU...</p>
+                            </div>
+                        `;
+                        lucide.createIcons();
+                    } else {
+                        crisisContainer.innerHTML = '';
+                    }
+                }
+                return;
+            }
+
+            // FULL RENDER
+            // Secret Objective Render
+            let secretObjHtml = '';
+            if (me.secretObjective) {
+                const so = me.secretObjective;
+                const percent = Math.min(100, (so.progress / so.target) * 100);
+                const isInf = so.type === 'influence';
+                const progressText = isInf ? `${me.influence}/${so.target}` : `${so.progress}/${so.target}`;
+                
+                secretObjHtml = `
+                    <div class="mb-4 bg-slate-900 border border-slate-700 p-4 rounded-xl relative overflow-hidden group">
+                        <div class="absolute top-2 right-2 text-[10px] text-slate-500 font-mono tracking-widest border border-slate-600 px-1 rounded bg-slate-800">CONFIDENCIAL</div>
+                        <h3 class="text-slate-200 font-bold text-sm mb-1 flex items-center gap-2">
+                             <i data-lucide="file-key" class="w-4 h-4 text-gold-500"></i>
+                             ${so.title}
+                        </h3>
+                        <p class="text-xs text-slate-400 mb-3">${so.desc}</p>
+                        
+                        ${so.completed ? 
+                            `<div class="bg-green-900/30 border border-green-500/50 p-2 rounded text-center text-green-300 text-xs font-bold animate-pulse">MISSÃO CUMPRIDA! Bônus Recebido.</div>` 
+                            : 
+                            `<div class="w-full bg-slate-800 rounded-full h-2 mb-1 overflow-hidden">
+                                <div class="bg-gold-500 h-full transition-all duration-500" style="width: ${percent}%"></div>
+                             </div>
+                             <div class="flex justify-between text-[10px] font-bold text-slate-500">
+                                <span>PROGRESSO: ${progressText}</span>
+                                <span class="text-gold-500/80">Recompensa: ${so.reward.text}</span>
+                             </div>`
+                        }
+                    </div>
+                `;
+            }
+
             container.innerHTML = `
-                <div class="p-6 space-y-6 animate-slide-up">
+                <div id="view-country" class="p-6 space-y-6 animate-slide-up">
                     <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl border border-slate-700 shadow-xl">
                         <div class="flex justify-between items-start mb-4">
                             <div>
@@ -1060,51 +1596,143 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-3 gap-4 mb-6">
-                            <div class="text-center"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Economia</div><div class="text-xl font-bold text-green-400">${me.stats.eco}%</div></div>
-                            <div class="text-center border-x border-slate-700"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Estab.</div><div class="text-xl font-bold text-blue-400">${me.stats.stab}%</div></div>
-                            <div class="text-center"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Popularidade</div><div class="text-xl font-bold text-gold-500">${me.stats.pop}%</div></div>
+                            <div class="text-center"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Economia</div><div id="val-eco" class="text-xl font-bold ${me.stats.eco < 20 ? 'text-red-500 animate-pulse' : 'text-green-400'}">${me.stats.eco}%</div></div>
+                            <div class="text-center border-x border-slate-700"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Estab.</div><div id="val-stab" class="text-xl font-bold ${me.stats.stab < 20 ? 'text-red-500 animate-pulse' : 'text-blue-400'}">${me.stats.stab}%</div></div>
+                            <div class="text-center"><div class="text-xs text-slate-400 uppercase font-bold mb-1">Popularidade</div><div id="val-pop" class="text-xl font-bold ${me.stats.pop < 20 ? 'text-red-500 animate-pulse' : 'text-gold-500'}">${me.stats.pop}%</div></div>
                         </div>
-                        <button onclick="Game.uiToggleVisibility()" class="w-full flex items-center justify-between bg-slate-700/50 p-3 rounded-xl border border-slate-600 active:bg-slate-700 transition-colors ${me.visibilityChangedThisRound ? 'opacity-50 cursor-not-allowed' : ''}">
+                        
+                        <div class="mb-4 bg-slate-800/50 rounded-lg p-2 flex justify-between items-center border border-slate-700">
+                             <span class="text-xs text-slate-400 uppercase font-bold ml-2">Influência Global</span>
+                             <span class="text-lg font-mono font-bold text-purple-400 mr-2">${me.influence}</span>
+                        </div>
+                        
+                        ${secretObjHtml}
+
+                        <div class="mb-4">
+                            <div class="flex justify-between items-end mb-2">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold">Identidade Nacional</p>
+                            </div>
+                            
+                            <div class="flex flex-wrap gap-2">
+                                ${me.traits.length === 0 ? '' : 
+                                    me.traits.map(t => `
+                                    <button onclick="Game.uiShowItemDetails('${t.name}', '${t.source || t.desc}', 'brain-circuit', 'text-purple-400')" class="bg-purple-900/40 border border-purple-500/50 px-3 py-1 rounded-full flex flex-col justify-center active:scale-95 transition-transform">
+                                        <div class="flex items-center gap-1">
+                                            <i data-lucide="brain-circuit" class="w-3 h-3 text-purple-400"></i>
+                                            <span class="text-[10px] text-purple-200 font-bold">${t.name}</span>
+                                        </div>
+                                    </button>
+                                    `).join('')
+                                }
+                                ${me.badges.length === 0 && me.traits.length === 0 ? '<span class="text-xs text-slate-600 italic">O país ainda não definiu sua identidade histórica.</span>' : 
+                                    me.badges.map(b => `
+                                    <button onclick="Game.uiShowItemDetails('${b.label}', '${b.description || 'Marca histórica adquirida.'}', '${b.icon}', '${b.color}')" class="bg-slate-800 border border-slate-600 px-3 py-1 rounded-full flex items-center gap-2 active:scale-95 transition-transform">
+                                        <i data-lucide="${b.icon}" class="w-3 h-3 ${b.color}"></i>
+                                        <span class="text-[10px] text-slate-300 font-bold">${b.label}</span>
+                                    </button>
+                                    `).join('')
+                                }
+                            </div>
+                        </div>
+
+                        <button id="btn-visibility" onclick="Game.uiToggleVisibility()" class="w-full flex items-center justify-between bg-slate-700/50 p-3 rounded-xl border border-slate-600 active:bg-slate-700 transition-colors ${me.visibilityChangedThisRound ? 'opacity-50 cursor-not-allowed' : ''}">
                             <div class="flex items-center gap-3">
                                 <i data-lucide="${me.visibility === 'public' ? 'eye' : 'eye-off'}" class="w-5 h-5 ${me.visibility === 'public' ? 'text-green-400' : 'text-red-400'}"></i>
                                 <div class="text-left">
-                                    <div class="text-sm font-bold text-white">Dados ${me.visibility === 'public' ? 'Públicos' : 'Anônimos'}</div>
+                                    <div class="text-sm font-bold text-white vis-text">Dados ${me.visibility === 'public' ? 'Públicos' : 'Anônimos'}</div>
                                 </div>
                             </div>
-                            <div class="w-2 h-2 rounded-full ${me.visibility === 'public' ? 'bg-green-500' : 'bg-red-500'}"></div>
+                            <div class="w-2 h-2 rounded-full ${me.visibility === 'public' ? 'bg-green-500' : 'bg-red-500'} vis-dot"></div>
                         </button>
+                    </div>
+                    
+                    <div id="crisis-container">
+                        ${isInCrisis && !me.activeAidRequest ? `
+                             <button onclick="Game.uiRequestAid('${me.stats.eco < 20 ? 'eco' : me.stats.stab < 20 ? 'stab' : 'pop'}')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl animate-pulse shadow-lg flex justify-center gap-2 items-center">
+                                <i data-lucide="alert-triangle" class="w-5 h-5"></i> PEDIR AJUDA INTERNACIONAL
+                             </button>
+                             <p class="text-xs text-red-400 text-center mt-2">Seus indicadores estão críticos!</p>
+                        ` : ''}
+                        ${me.activeAidRequest ? `
+                            <div class="bg-red-900/30 border border-red-500/50 p-4 rounded-xl text-center">
+                                <p class="text-red-200 font-bold text-sm flex justify-center items-center gap-2"><i data-lucide="radio" class="w-4 h-4 animate-ping"></i> Pedido de Socorro Enviado</p>
+                                <p class="text-xs text-slate-400 mt-1">Aguardando resposta da ONU...</p>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }
 
         function renderMap(container) {
+             const svgContent = COUNTRIES.map(c => {
+                const owner = Game.state.players.find(p => p.country && p.country.id === c.id);
+                const fillColor = owner ? '#EAB308' : '#334155';
+                const strokeColor = owner ? '#FEF08A' : '#475569';
+                
+                // Alert Marker Logic
+                let marker = '';
+                if (owner && owner.activeAidRequest) {
+                     marker = `
+                        <g onclick="openCountryDetails('${c.id}')" style="cursor: pointer;">
+                            <circle cx="${c.center.x}" cy="${c.center.y}" r="8" fill="#ef4444" opacity="0.5" class="map-alert" />
+                            <circle cx="${c.center.x}" cy="${c.center.y}" r="4" fill="#ef4444" stroke="white" stroke-width="1" />
+                        </g>
+                     `;
+                }
+
+                return `<path id="map-${c.id}" d="${c.path}" class="country-path" style="fill: ${fillColor}; stroke: ${strokeColor};" onclick="openCountryDetails('${c.id}')" />${marker}`;
+             }).join('');
+
+             if (document.getElementById('view-map')) {
+                 // Cheap re-render for markers
+                 const mapSvg = document.getElementById('map-svg-root');
+                 if(mapSvg) mapSvg.innerHTML = svgContent;
+                 return;
+             }
+
              container.innerHTML = `
-                <div class="h-full flex flex-col bg-[#1e293b] animate-fade-in relative">
+                <div id="view-map" class="h-full flex flex-col bg-[#1e293b] animate-fade-in relative">
                     <h2 class="absolute top-4 left-6 text-2xl font-black text-white/10 z-0">AMÉRICA<br>DO SUL</h2>
                     <div class="flex-1 flex items-center justify-center p-4 z-10">
-                        <svg viewBox="0 0 240 450" class="w-full h-full drop-shadow-2xl">
-                            ${COUNTRIES.map(c => {
-                                const owner = Game.state.players.find(p => p.country && p.country.id === c.id);
-                                const fillColor = owner ? '#EAB308' : '#334155';
-                                const strokeColor = owner ? '#FEF08A' : '#475569';
-                                return `<path id="map-${c.id}" d="${c.path}" class="country-path" style="fill: ${fillColor}; stroke: ${strokeColor};" onclick="openCountryDetails('${c.id}')" />`;
-                            }).join('')}
+                        <svg id="map-svg-root" viewBox="0 0 240 450" class="w-full h-full drop-shadow-2xl">
+                            ${svgContent}
                         </svg>
                     </div>
                 </div>
             `;
         }
         function renderRelations(container) {
+             if (document.getElementById('view-relations')) {
+                 const list = document.getElementById('relations-list');
+                 list.innerHTML = Game.state.players.map(p => `
+                        <div class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white text-xs border border-slate-500">
+                                    ${p.country ? p.country.id.toUpperCase() : '??'}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-white">${p.name}</div>
+                                    <div class="text-xs text-slate-400">${p.country ? p.country.name : '...'}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-purple-400 font-mono font-bold text-sm">${p.influence} INF</div>
+                            </div>
+                        </div>
+                    `).join('');
+                 return;
+             }
+             
              container.innerHTML = `
-             <div class="p-6 space-y-4 animate-fade-in pb-24">
+             <div id="view-relations" class="p-6 space-y-4 animate-fade-in pb-24">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold text-white">Relações Exteriores</h2>
                     <div class="bg-slate-800 border border-slate-600 px-3 py-1 rounded-lg text-xs font-mono text-gold-500 tracking-widest">
                         CODE: ${Game.state.roomCode}
                     </div>
                 </div>
-                <div class="space-y-2">
+                <div id="relations-list" class="space-y-2">
                     ${Game.state.players.map(p => `
                         <div class="bg-dark-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
                             <div class="flex items-center gap-3">
@@ -1116,6 +1744,9 @@
                                     <div class="text-xs text-slate-400">${p.country ? p.country.name : '...'}</div>
                                 </div>
                             </div>
+                            <div class="text-right">
+                                <div class="text-purple-400 font-mono font-bold text-sm">${p.influence} INF</div>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -1123,23 +1754,144 @@
         }
         function renderNews(container) {
              const me = Game.getMyPlayer();
-            const feed = Game.state.newsFeed.map(n => {
+             document.getElementById('badge-news').classList.add('hidden');
+             
+             // Ensure active tab state
+             if (!window.currentNewsTab) window.currentNewsTab = 'main';
+             
+             // Filter
+             const allFeed = Game.state.newsFeed.map(n => {
                 let displayType = 'real';
                 if (n.type === 'fake') displayType = (n.sourceId === me.id) ? 'fake' : 'real'; 
                 return { ...n, displayType };
-            });
-            document.getElementById('badge-news').classList.add('hidden');
-            container.innerHTML = `<div class="p-6 animate-fade-in pb-24"><h2 class="text-2xl font-bold text-white mb-6">Central de Notícias</h2><div class="space-y-4">${feed.map(n => `<div class="bg-dark-800 p-4 rounded-r-xl news-item news-${n.displayType}"><div class="flex justify-between items-start mb-1"><span class="text-[10px] font-bold uppercase text-slate-400">Semestre ${n.round}</span>${n.displayType === 'fake' ? '<span class="text-[10px] bg-purple-900 text-purple-300 px-2 rounded">SEU FAKE</span>' : ''}</div><p class="text-sm text-slate-200 leading-snug">${n.text}</p></div>`).join('')}${feed.length === 0 ? '<p class="text-center text-slate-500 mt-10">Nenhuma notícia recente.</p>' : ''}</div></div>`;
+             });
+
+             const mainNews = allFeed.filter(n => n.isMajor);
+             const generalNews = allFeed; // Shows everything
+
+             const activeFeed = window.currentNewsTab === 'main' ? mainNews : generalNews;
+             
+             // HTML Generator
+             const generateList = () => {
+                 if(activeFeed.length === 0) return '<div class="flex flex-col items-center justify-center h-48 text-slate-500"><i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i><p class="text-xs">Sem notícias nesta categoria.</p></div>';
+                 
+                 return activeFeed.map(n => {
+                     // Clickable for everyone if details exist
+                     const escapedDetails = n.details ? n.details.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n') : '';
+                     const clickableAttr = n.details ? `onclick="Game.uiShowItemDetails('Relatório', '${escapedDetails}', 'newspaper', 'text-gold-500')"` : '';
+                     const cursorClass = n.details ? 'clickable-news cursor-pointer hover:border-gold-400' : '';
+
+                     if (window.currentNewsTab === 'main') {
+                         // MAIN STYLE
+                         return `
+                            <div ${clickableAttr} class="bg-slate-800 border-l-4 ${n.displayType === 'fake' ? 'border-purple-500' : 'border-gold-500'} rounded-lg p-4 shadow-lg mb-4 animate-slide-up ${cursorClass}">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="bg-slate-900 text-slate-300 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">SEMESTRE ${n.round}</span>
+                                    ${n.displayType === 'fake' ? '<span class="bg-purple-900 text-purple-200 text-[10px] font-bold px-2 py-1 rounded">RUMOR FABRICADO</span>' : ''}
+                                    ${n.details ? '<i data-lucide="info" class="w-3 h-3 text-slate-400"></i>' : ''}
+                                </div>
+                                <p class="text-white text-sm font-bold leading-relaxed">${n.text}</p>
+                            </div>
+                         `;
+                     } else {
+                         // GENERAL STYLE (Timeline)
+                         return `
+                            <div ${clickableAttr} class="flex gap-3 mb-4 animate-slide-up group ${cursorClass}">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-2 h-2 rounded-full ${n.displayType === 'fake' ? 'bg-purple-500' : 'bg-slate-500'} mt-2 group-hover:scale-125 transition-transform"></div>
+                                    <div class="w-0.5 flex-1 bg-slate-800 my-1"></div>
+                                </div>
+                                <div class="bg-slate-800/50 rounded-lg p-3 flex-1 border border-slate-700/50 group-hover:border-slate-500 transition-colors">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-[10px] text-slate-500 font-mono">SEM ${n.round}</span>
+                                        ${n.displayType === 'fake' ? '<i data-lucide="eye-off" class="w-3 h-3 text-purple-400"></i>' : ''}
+                                    </div>
+                                    <p class="text-slate-300 text-xs leading-snug">${n.text}</p>
+                                </div>
+                            </div>
+                         `;
+                     }
+                 }).join('');
+             };
+
+             container.innerHTML = `
+                <div id="view-news" class="p-4 animate-fade-in pb-24 h-full flex flex-col">
+                    <h2 class="text-2xl font-bold text-white mb-4 px-2">Central de Notícias</h2>
+                    
+                    <!-- Tabs -->
+                    <div class="flex bg-slate-900 p-1 rounded-xl mb-6 shrink-0">
+                        <button onclick="Game.uiSwitchNewsTab('main')" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all ${window.currentNewsTab === 'main' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-slate-300'}">
+                            Principais
+                        </button>
+                        <button onclick="Game.uiSwitchNewsTab('general')" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all ${window.currentNewsTab === 'general' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-slate-300'}">
+                            Geral
+                        </button>
+                    </div>
+
+                    <!-- Feed -->
+                    <div id="news-list" class="flex-1 overflow-y-auto scroll-hide">
+                        ${generateList()}
+                    </div>
+                </div>
+             `;
         }
 
         function openCountryDetails(id) { 
              const target = Game.state.players.find(p => p.country && p.country.id === id);
+             const me = Game.getMyPlayer();
              const modal = document.getElementById('modal-overlay');
              const content = document.getElementById('modal-content');
              modal.classList.remove('hidden');
+             
              if (!target) { content.innerHTML = `<h3 class="text-white font-bold">País Neutro</h3><button onclick="closeModal()" class="mt-4 w-full py-2 bg-slate-700 text-white rounded">Fechar</button>`; return; }
+             
              const isPublic = target.visibility === 'public';
-             content.innerHTML = `<div class="text-center mb-6"><h2 class="text-2xl font-bold text-white mb-1">${target.country.name}</h2><p class="text-gold-500 text-xs font-bold uppercase">${target.name}</p></div><div class="bg-slate-900/50 p-4 rounded-xl mb-4 border border-slate-700"><div class="flex justify-between items-center mb-2"><span class="text-slate-400 text-sm">Popularidade</span><span class="text-white font-bold">${isPublic ? target.stats.pop + '%' : '???'}</span></div></div><div class="grid grid-cols-2 gap-2"><button onclick="Game.uiDeploySpy('${target.id}','gov')" class="bg-red-900/50 py-3 text-red-100 rounded text-xs font-bold">Espionar</button><button onclick="openFakeNewsMenu('${target.id}', '${target.country.name}')" class="bg-purple-900/50 py-3 text-purple-100 rounded text-xs font-bold">Fake News</button></div><button onclick="closeModal()" class="mt-4 w-full text-slate-400 text-sm">Fechar</button>`;
+             let aidButton = '';
+             
+             if (target.id !== me.id && target.activeAidRequest) {
+                 aidButton = `<button onclick="Game.uiSendAid('${target.id}')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl mb-3 flex justify-center items-center gap-2 animate-pulse shadow-xl"><i data-lucide="heart-handshake" class="w-5 h-5"></i> ENVIAR AJUDA (-10 Recurso)</button>`;
+             }
+
+             content.innerHTML = `
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-white mb-1">${target.country.name}</h2>
+                    <p class="text-gold-500 text-xs font-bold uppercase">${target.name}</p>
+                    
+                    <div class="flex flex-wrap gap-2 justify-center mt-3">
+                        ${target.traits.length === 0 ? '' : 
+                            target.traits.map(t => `
+                            <button onclick="Game.uiShowItemDetails('${t.name}', '${t.source || t.desc}', 'brain-circuit', 'text-purple-400')" class="bg-purple-900/40 border border-purple-500/50 px-3 py-1 rounded-full flex flex-col justify-center active:scale-95 transition-transform">
+                                <div class="flex items-center gap-1">
+                                    <i data-lucide="brain-circuit" class="w-3 h-3 text-purple-400"></i>
+                                    <span class="text-[10px] text-purple-200 font-bold">${t.name}</span>
+                                </div>
+                            </button>
+                            `).join('')
+                        }
+                        ${target.badges.length === 0 && target.traits.length === 0 ? '<span class="text-xs text-slate-600 italic">Sem marcas históricas.</span>' : 
+                            target.badges.map(b => `
+                            <button onclick="Game.uiShowItemDetails('${b.label}', '${b.description || 'Marca histórica adquirida.'}', '${b.icon}', '${b.color}')" class="bg-slate-800 border border-slate-600 px-3 py-1 rounded-full flex items-center gap-2 active:scale-95 transition-transform">
+                                <i data-lucide="${b.icon}" class="w-3 h-3 ${b.color}"></i>
+                                <span class="text-[10px] text-slate-300 font-bold">${b.label}</span>
+                            </button>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+                ${aidButton}
+                <div class="bg-slate-900/50 p-4 rounded-xl mb-4 border border-slate-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-slate-400 text-sm">Popularidade</span>
+                        <span class="text-white font-bold">${isPublic ? target.stats.pop + '%' : '???'}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="Game.uiDeploySpy('${target.id}','gov')" class="bg-red-900/50 py-3 text-red-100 rounded text-xs font-bold">Espionar</button>
+                    <button onclick="openFakeNewsMenu('${target.id}', '${target.country.name}')" class="bg-purple-900/50 py-3 text-purple-100 rounded text-xs font-bold">Fake News</button>
+                </div>
+                <button onclick="closeModal()" class="mt-4 w-full text-slate-400 text-sm">Fechar</button>
+             `;
+             lucide.createIcons();
         }
 
         function openFakeNewsMenu(targetId, targetName) {
